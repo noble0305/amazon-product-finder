@@ -1,0 +1,30 @@
+# Rainforest API
+rainforest:
+  api_key: "YOUR_API_KEY"  # 留空使用 demo 模式
+  marketplace: "us"
+
+# Keepa API
+keepa:
+  api_key: "YOUR_API_KEY"  # 留空使用 demo 模式
+
+# AI 分析
+ai:
+  api_key: ""  # OpenAI 兼容 API key
+  base_url: ""  # API base URL
+  model: "gpt-4o-mini"
+
+# 评分权重
+scoring:
+  demand_weight: 0.35
+  competition_weight: 0.30
+  profit_weight: 0.25
+  opportunity_weight: 0.10
+
+# 筛选条件
+filters:
+  min_price: 15
+  max_price: 50
+  min_reviews: 10
+  max_reviews: 2000
+  min_rating: 3.5
+  max_bsr: 80000
