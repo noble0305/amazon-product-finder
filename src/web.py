@@ -168,8 +168,8 @@ INDEX_HTML = """<!DOCTYPE html>
         <div class="form-group">
           <label>数据源</label>
           <select id="datasource">
-            <option value="rainforest">🌊 Rainforest API</option>
-            <option value="playwright">🕷️ Playwright 直爬</option>
+            <option value="rainforest">🌊 Rainforest API（推荐）</option>
+            <option value="playwright">🕷️ Playwright 直爬（可能触发验证码）</option>
           </select>
         </div>
         <div class="form-group">
@@ -191,8 +191,8 @@ INDEX_HTML = """<!DOCTYPE html>
         <div class="form-group">
           <label>数据源</label>
           <select id="datasource-search">
-            <option value="rainforest">🌊 Rainforest API</option>
-            <option value="playwright">🕷️ Playwright 直爬</option>
+            <option value="rainforest">🌊 Rainforest API（推荐）</option>
+            <option value="playwright">🕷️ Playwright 直爬（可能触发验证码）</option>
           </select>
         </div>
         <button class="btn btn-secondary" onclick="doSearch()">搜索</button>
@@ -418,8 +418,8 @@ INDEX_HTML = """<!DOCTYPE html>
         <div class="form-group">
           <label>数据源</label>
           <select id="report-datasource">
-            <option value="rainforest">🌊 Rainforest API</option>
-            <option value="playwright">🕷️ Playwright 直爬</option>
+            <option value="rainforest">🌊 Rainforest API（推荐）</option>
+            <option value="playwright">🕷️ Playwright 直爬（可能触发验证码）</option>
           </select>
         </div>
         <button class="btn btn-primary" onclick="genCategoryReport()">📊 生成报告</button>
