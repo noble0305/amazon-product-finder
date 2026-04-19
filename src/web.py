@@ -518,6 +518,8 @@ function switchTab(name) {
 }
 
 async function doScan() {
+  const btn = event ? event.target : document.querySelector('.btn-primary');
+  if (btn) btn.disabled = true;
   const cat = document.getElementById('category').value;
   const pages = document.getElementById('pages').value;
   const mp = document.getElementById('marketplace').value;
@@ -528,23 +530,27 @@ async function doScan() {
   try {
     const resp = await fetch('/api/scan?category=' + encodeURIComponent(cat) + '&pages=' + pages + '&marketplace=' + mp + '&datasource=' + ds + '&list_type=' + lt);
     const data = await resp.json();
-    if (data.ok) window.location.reload();
+    if (data.ok) { hideLoading(); alert('扫描完成！获取 ' + data.count + ' 个产品'); setTimeout(() => window.location.reload(), 500); }
     else { alert('扫描失败: ' + data.error); hideLoading(); }
   } catch(e) { alert('请求失败: ' + e.message); hideLoading(); }
+  finally { if (btn) btn.disabled = false; }
 }
 
 async function doSearch() {
   const kw = document.getElementById('keyword').value.trim();
   if (!kw) { alert('请输入关键词'); return; }
+  const searchBtn = event ? event.target : null;
+  if (searchBtn) searchBtn.disabled = true;
   const mp = document.getElementById('marketplace').value;
   const ds = document.getElementById('datasource-search').value;
   showLoading('正在搜索 "' + kw + '" (' + (ds === 'playwright' ? 'Playwright' : 'Rainforest') + ') ...');
   try {
     const resp = await fetch('/api/search?keyword=' + encodeURIComponent(kw) + '&pages=1&marketplace=' + mp + '&datasource=' + ds);
     const data = await resp.json();
-    if (data.ok) window.location.reload();
+    if (data.ok) { hideLoading(); alert('搜索完成！获取 ' + data.count + ' 个产品'); setTimeout(() => window.location.reload(), 500); }
     else { alert('搜索失败: ' + data.error); hideLoading(); }
   } catch(e) { alert('请求失败: ' + e.message); hideLoading(); }
+  finally { if (searchBtn) searchBtn.disabled = false; }
 }
 
 function showLoading(t) { document.getElementById('loadingText').textContent = t; document.getElementById('loading').classList.add('show'); document.getElementById('results').style.display = 'none'; }
