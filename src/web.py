@@ -98,6 +98,15 @@ footer{text-align:center;padding:24px;color:#94a3b8;font-size:12px}
 .checkbox-col{width:30px;text-align:center}
 .checkbox-col input[type=checkbox]{min-width:auto;width:16px;height:16px;accent-color:#7c3aed}
 code{background:rgba(139,92,246,.1);padding:2px 6px;border-radius:4px;font-size:12px;color:#c4b5fd}
+.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+.sortable:hover{color:#4338ca}
+.sort-arrow{font-size:10px;margin-left:2px;color:#6366f1}
+.pager{display:flex;align-items:center;gap:6px;margin-top:16px;flex-wrap:wrap}
+.pager button{padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:12px;color:#475569;font-family:inherit}
+.pager button:hover:not(:disabled){background:#f1f5f9}
+.pager button.active{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border-color:#4f46e5}
+.pager button:disabled{opacity:.35;cursor:not-allowed}
+.pager .page-info{font-size:12px;color:#64748b;margin-left:8px}
 </style>
 """
 
@@ -174,7 +183,7 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
         <div class="form-group">
           <label>页数</label>
-          <input type="number" id="pages" value="2" min="1" max="5" style="min-width:80px">
+          <input type="number" id="pages" value="3" min="1" max="5" style="min-width:80px">
         </div>
         <div class="form-group">
           <label>榜单类型</label>
@@ -556,45 +565,102 @@ async function doSearch() {
 }
 
 function renderScanResults(products, scanTime, source, title) {
+  window._scanProducts = products || [];
+  window._scanOriginal = products ? products.slice() : [];
+  window._scanSortField = 'total_score';
+  window._scanSortDir = 'desc';
+  window._scanPage = 1;
+  window._scanPerPage = 20;
+  window._scanTitle = title || '本次扫描结果';
+  window._scanTime = scanTime;
+  window._scanSource = source;
+  window._scanFavAsins = [{% for a in fav_asins %}'{{ a }}',{% endfor %}];
+  window._scanDomain = ({{ RainforestCollector.MARKETPLACE_DOMAINS | tojson }})[document.getElementById('marketplace').value] || 'amazon.com';
+  window._scanSourceLabels = {rainforest:'Rainforest', playwright:'Playwright', demo:'Demo'};
+  window._scanSourceColors = {rainforest:'badge-green', playwright:'badge-yellow', demo:'badge-red'};
+  sortAndRender();
+}
+
+function sortAndRender() {
+  var field = window._scanSortField;
+  var dir = window._scanSortDir;
+  var products = window._scanProducts;
+  if (field) {
+    products.sort(function(a, b) {
+      var va = a[field] || 0, vb = b[field] || 0;
+      if (typeof va === 'string') return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return dir === 'asc' ? va - vb : vb - va;
+    });
+  } else {
+    window._scanProducts = window._scanOriginal.slice();
+  }
+  renderCurrentPage(1);
+}
+
+function sortProducts(field) {
+  if (window._scanSortField === field) {
+    if (window._scanSortDir === 'desc') window._scanSortDir = 'asc';
+    else if (window._scanSortDir === 'asc') { window._scanSortField = 'total_score'; window._scanSortDir = 'desc'; }
+  } else {
+    window._scanSortField = field;
+    window._scanSortDir = 'desc';
+  }
+  sortAndRender();
+}
+
+function renderCurrentPage(page) {
+  window._scanPage = page;
+  var products = window._scanProducts;
+  var perPage = window._scanPerPage;
+  var total = products.length;
+  var totalPages = Math.ceil(total / perPage) || 1;
+  var start = (page - 1) * perPage;
+  var end = Math.min(start + perPage, total);
+  var pageItems = products.slice(start, end);
+  var domain = window._scanDomain;
+  var favAsins = window._scanFavAsins;
+  var srcLbl = window._scanSourceLabels;
+  var srcClr = window._scanSourceColors;
+  var src = window._scanSource;
+  var sortField = window._scanSortField;
+  var sortDir = window._scanSortDir;
+
   var el = document.getElementById('results');
-  var favAsins = [{% for a in fav_asins %}'{{ a }}',{% endfor %}];
-  var mp = document.getElementById('marketplace').value;
-  var domains = {{ RainforestCollector.MARKETPLACE_DOMAINS | tojson }};
-  var domain = domains[mp] || 'amazon.com';
-  var sourceLabels = {rainforest:'Rainforest', playwright:'Playwright', demo:'Demo'};
-  var sourceColors = {rainforest:'badge-green', playwright:'badge-yellow', demo:'badge-red'};
-  var sourceLabel = sourceLabels[source] || source;
-  var sourceColor = sourceColors[source] || 'badge-green';
-
-  var h = '<h2>🔍 ' + (title || '本次扫描结果') + ' <span style="font-size:12px;color:#6b5f82">（' + products.length + ' 个产品）</span>';
+  var h = '<h2>🔍 ' + window._scanTitle + ' <span style="font-size:12px;color:#6b5f82">（' + total + ' 个产品）</span>';
   h += ' <button class="btn btn-secondary btn-sm" onclick="window.location.reload()" style="margin-left:8px">← 返回排行榜</button></h2>';
-  h += '<p style="font-size:12px;color:#64748b;margin-bottom:12px">采集时间: ' + scanTime + ' · 数据来源: <span class="badge ' + sourceColor + '">' + sourceLabel + '</span></p>';
+  h += '<p style="font-size:12px;color:#64748b;margin-bottom:12px">采集时间: ' + window._scanTime + ' · 数据来源: <span class="badge ' + (srcClr[src] || 'badge-green') + '">' + (srcLbl[src] || src) + '</span></p>';
 
-  if (!products || !products.length) {
-    el.innerHTML = h + '<div class="empty">未获取到产品</div>';
-    el.style.display = 'block';
-    return;
+  if (!total) { el.innerHTML = h + '<div class="empty">未获取到产品</div>'; el.style.display = 'block'; return; }
+
+  function th(label, field) {
+    var arrow = '';
+    if (sortField === field) arrow = '<span class="sort-arrow">' + (sortDir === 'desc' ? '▼' : '▲') + '</span>';
+    return '<th class="sortable" data-field="' + field + '" onclick="sortProducts(this.dataset.field)">' + label + arrow + '</th>';
   }
 
   h += '<div style="overflow-x:auto"><table>';
   h += '<thead><tr><th class="checkbox-col"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>';
-  h += '<th>#</th><th>图片</th><th>ASIN</th><th>来源</th><th>总分</th><th>售价</th><th>毛利</th><th>毛利率</th><th>月销量</th><th>BSR</th><th>评分</th><th>收藏</th><th>操作</th></tr></thead><tbody>';
+  h += '<th>#</th><th>图片</th><th>ASIN</th><th>来源</th>';
+  h += th('总分', 'total_score') + th('售价', 'price') + th('毛利', 'gross_profit') + th('毛利率', 'profit_margin');
+  h += th('月销量', 'monthly_sales_est') + th('BSR', 'bsr') + th('评分', 'rating');
+  h += '<th>收藏</th><th>操作</th></tr></thead><tbody>';
 
-  for (var i = 0; i < products.length; i++) {
-    var p = products[i];
+  for (var i = 0; i < pageItems.length; i++) {
+    var p = pageItems[i];
+    var idx = start + i + 1;
     var imgHtml = p.image_url
-      ? '<a href="https://www.' + domain + '/dp/' + p.asin + '" target="_blank"><img src="' + p.image_url + '" alt="" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;" onerror="this.src=\\'https://via.placeholder.com/50x50/f1f5f9/94a3b8?text=📦\\'"></a>'
+      ? '<a href="https://www.' + domain + '/dp/' + p.asin + '" target="_blank"><img src="' + p.image_url + '" alt="" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;" data-asin="' + p.asin + '" onerror="this.onerror=null;this.src=this.dataset.fallback" data-fallback="https://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=' + p.asin + '&Format=_SL250_&ID=AsinImage"></a>'
       : '<a href="https://www.' + domain + '/dp/' + p.asin + '" target="_blank" style="display:inline-block;width:50px;height:50px;background:#f1f5f9;border-radius:6px;text-align:center;line-height:50px;font-size:20px;text-decoration:none">📦</a>';
     var scoreClass = p.total_score >= 75 ? 'score-high' : (p.total_score >= 60 ? 'score-mid' : 'score-low');
     var marginClass = p.profit_margin >= 30 ? 'badge-green' : (p.profit_margin >= 20 ? 'badge-yellow' : 'badge-red');
     var favClass = favAsins.indexOf(p.asin) >= 0 ? 'active' : '';
-    var ds = p.data_source || source;
-    var dsLabel = sourceLabels[ds] || ds;
-    var dsColor = sourceColors[ds] || 'badge-green';
+    var ds = p.data_source || src;
+    var dsLabel = srcLbl[ds] || ds;
+    var dsColor = srcClr[ds] || 'badge-green';
 
     h += '<tr>';
     h += '<td class="checkbox-col"><input type="checkbox" class="asin-cb" value="' + p.asin + '"></td>';
-    h += '<td>' + (i + 1) + '</td>';
+    h += '<td>' + idx + '</td>';
     h += '<td>' + imgHtml + '</td>';
     h += '<td><a href="https://www.' + domain + '/dp/' + p.asin + '" target="_blank" style="color:#6366f1;font-weight:500"><code>' + p.asin + '</code></a></td>';
     h += '<td><span class="badge ' + dsColor + '">' + dsLabel + '</span></td>';
@@ -610,6 +676,28 @@ function renderScanResults(products, scanTime, source, title) {
     h += '</tr>';
   }
   h += '</tbody></table></div>';
+
+  if (totalPages > 1) {
+    h += '<div class="pager">';
+    h += '<button onclick="renderCurrentPage(' + (page - 1) + ')"' + (page <= 1 ? ' disabled' : '') + '>上一页</button>';
+    var pages = [];
+    if (totalPages <= 7) { for (var n = 1; n <= totalPages; n++) pages.push(n); }
+    else {
+      pages.push(1);
+      if (page > 3) pages.push('...');
+      for (var n = Math.max(2, page - 1); n <= Math.min(totalPages - 1, page + 1); n++) pages.push(n);
+      if (page < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    for (var pi = 0; pi < pages.length; pi++) {
+      if (pages[pi] === '...') { h += '<span style="padding:0 4px;color:#94a3b8">...</span>'; }
+      else { h += '<button onclick="renderCurrentPage(' + pages[pi] + ')"' + (pages[pi] === page ? ' class="active"' : '') + '>' + pages[pi] + '</button>'; }
+    }
+    h += '<button onclick="renderCurrentPage(' + (page + 1) + ')"' + (page >= totalPages ? ' disabled' : '') + '>下一页</button>';
+    h += '<span class="page-info">第 ' + page + '/' + totalPages + ' 页 · 共 ' + total + ' 条</span>';
+    h += '</div>';
+  }
+
   h += '<div class="actions"><a href="/export" class="btn btn-primary">📥 导出报告</a><a href="/api/export" class="btn btn-secondary" download>📄 下载 Markdown</a><button class="btn btn-secondary" onclick="compareSelected()">📊 对比选中</button></div>';
 
   el.innerHTML = h;
