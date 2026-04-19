@@ -826,7 +826,7 @@ function renderMapping(cols, containerId, mappingObj, source) {
   cols.forEach(col => {
     const auto = mappingObj[col] || '';
     html += '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:#64748b;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + col + '">' + col + '</span>';
-    html += '<select data-col="' + col + '" style="font-size:12px;padding:3px 6px;min-width:0;flex:1" onchange="' + source + 'Mapping[\'' + col.replace(/'/g, "\\'") + '\']=this.value">';
+    html += '<select data-col="' + col + '" style="font-size:12px;padding:3px 6px;min-width:0;flex:1" onchange="' + source + 'Mapping[\\x27' + col + '\\x27]=this.value">';
     FIELD_OPTIONS.forEach(opt => {
       html += '<option value="' + opt.value + '"' + (auto === opt.value ? ' selected' : '') + '>' + opt.label + '</option>';
     });
