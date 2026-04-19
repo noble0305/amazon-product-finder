@@ -311,6 +311,157 @@ class PlaywrightScraper:
 
 # ─── 同步包装器 ───────────────────────────────────────────────
 
+    async def get_new_releases(self, category: str, pages: int = 1) -> List[Product]:
+        """抓取 New Releases 新品榜页面"""
+        from playwright.async_api import async_playwright
+
+        products = []
+        slug = category.lower().replace(" & ", "-").replace(" ", "-").replace(",", "")
+
+        async with async_playwright() as p:
+            browser, context = await self._get_browser(p)
+            page = await context.new_page()
+
+            for pg in range(1, pages + 1):
+                url = f"{self.base_url}/gp/new-releases/{slug}"
+                if pg > 1:
+                    url += f"?pg={pg}"
+                try:
+                    print(f"  🆕 正在抓取新品榜: {url}")
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(random.randint(2000, 5000))
+
+                    content = await page.content()
+                    if "captcha" in content.lower() or "robot" in content.lower():
+                        print(f"  ⚠️ 触发 CAPTCHA，跳过本页")
+                        continue
+
+                    items = await page.query_selector_all('#gridItemRoot, [data-component-type="s-impression-logger"], .p13n-grid-item, .a-carousel-card')
+                    if not items:
+                        items = await page.query_selector_all('[data-asin]')
+
+                    page_count = 0
+                    for idx, item in enumerate(items[:50]):
+                        try:
+                            asin = await item.get_attribute('data-asin') or ''
+                            if not asin or len(asin) != 10:
+                                continue
+                            rank = idx + 1 + (pg - 1) * 50
+
+                            title_el = await item.query_selector('a.a-link-normal span, .a-text-normal, [data-cy="title-recipe-title"]')
+                            title = await title_el.inner_text() if title_el else ""
+
+                            price_el = await item.query_selector('.a-price .a-offscreen, .a-color-price, span.p13n-sc-price')
+                            price_text = await price_el.inner_text() if price_el else "0"
+                            price = self._parse_price(price_text)
+
+                            rating_el = await item.query_selector('i.a-icon-star-small span, .a-icon-alt, i[data-cy="reviews-ratings-slot"] span')
+                            rating_text = await rating_el.inner_text() if rating_el else "0"
+                            rating = self._parse_rating(rating_text)
+
+                            reviews_el = await item.query_selector('span.a-size-small, .a-size-base.s-underline-text')
+                            reviews_text = await reviews_el.inner_text() if reviews_el else "0"
+                            reviews_count = self._parse_number(reviews_text)
+
+                            img_el = await item.query_selector('img.s-image, img[src*="images-amazon"]')
+                            image_url = await img_el.get_attribute('src') if img_el else ""
+
+                            if title and price > 0:
+                                products.append(self._make_product(
+                                    asin=asin, title=title, price=price, rating=rating,
+                                    reviews_count=reviews_count, bsr=rank, category=category,
+                                    image_url=image_url,
+                                ))
+                                page_count += 1
+                        except:
+                            continue
+                    print(f"  ✅ 新品榜第 {pg} 页：获取 {page_count} 个产品")
+                    if pg < pages:
+                        await page.wait_for_timeout(random.randint(3000, 8000))
+                except Exception as e:
+                    print(f"  ❌ 新品榜第 {pg} 页抓取失败: {e}")
+                    continue
+
+            await browser.close()
+        print(f"  🆕 新品榜抓取完成，共 {len(products)} 个产品")
+        return products
+
+    async def get_movers_shakers(self, category: str, pages: int = 1) -> List[Product]:
+        """抓取 Movers & Shakers 飙升榜页面"""
+        from playwright.async_api import async_playwright
+
+        products = []
+        slug = category.lower().replace(" & ", "-").replace(" ", "-").replace(",", "")
+
+        async with async_playwright() as p:
+            browser, context = await self._get_browser(p)
+            page = await context.new_page()
+
+            for pg in range(1, pages + 1):
+                url = f"{self.base_url}/gp/movers-and-shakers/{slug}"
+                if pg > 1:
+                    url += f"?pg={pg}"
+                try:
+                    print(f"  🚀 正在抓取飙升榜: {url}")
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(random.randint(2000, 5000))
+
+                    content = await page.content()
+                    if "captcha" in content.lower() or "robot" in content.lower():
+                        print(f"  ⚠️ 触发 CAPTCHA，跳过本页")
+                        continue
+
+                    items = await page.query_selector_all('#gridItemRoot, [data-component-type="s-impression-logger"], .p13n-grid-item, .a-carousel-card')
+                    if not items:
+                        items = await page.query_selector_all('[data-asin]')
+
+                    page_count = 0
+                    for idx, item in enumerate(items[:100]):
+                        try:
+                            asin = await item.get_attribute('data-asin') or ''
+                            if not asin or len(asin) != 10:
+                                continue
+                            rank = idx + 1 + (pg - 1) * 100
+
+                            title_el = await item.query_selector('a.a-link-normal span, .a-text-normal, [data-cy="title-recipe-title"]')
+                            title = await title_el.inner_text() if title_el else ""
+
+                            price_el = await item.query_selector('.a-price .a-offscreen, .a-color-price, span.p13n-sc-price')
+                            price_text = await price_el.inner_text() if price_el else "0"
+                            price = self._parse_price(price_text)
+
+                            rating_el = await item.query_selector('i.a-icon-star-small span, .a-icon-alt')
+                            rating_text = await rating_el.inner_text() if rating_el else "0"
+                            rating = self._parse_rating(rating_text)
+
+                            reviews_el = await item.query_selector('span.a-size-small, .a-size-base.s-underline-text')
+                            reviews_text = await reviews_el.inner_text() if reviews_el else "0"
+                            reviews_count = self._parse_number(reviews_text)
+
+                            img_el = await item.query_selector('img.s-image, img[src*="images-amazon"]')
+                            image_url = await img_el.get_attribute('src') if img_el else ""
+
+                            if title and price > 0:
+                                products.append(self._make_product(
+                                    asin=asin, title=title, price=price, rating=rating,
+                                    reviews_count=reviews_count, bsr=rank, category=category,
+                                    image_url=image_url,
+                                ))
+                                page_count += 1
+                        except:
+                            continue
+                    print(f"  ✅ 飙升榜第 {pg} 页：获取 {page_count} 个产品")
+                    if pg < pages:
+                        await page.wait_for_timeout(random.randint(3000, 8000))
+                except Exception as e:
+                    print(f"  ❌ 飙升榜第 {pg} 页抓取失败: {e}")
+                    continue
+
+            await browser.close()
+        print(f"  🚀 飙升榜抓取完成，共 {len(products)} 个产品")
+        return products
+
+
 def sync_get_best_sellers(marketplace: str, category: str, pages: int = 1) -> List[Product]:
     """同步版本的 Best Sellers 抓取"""
     scraper = PlaywrightScraper(marketplace=marketplace)
@@ -327,3 +478,13 @@ def sync_get_categories(marketplace: str) -> list:
     """同步版本的品类获取"""
     scraper = PlaywrightScraper(marketplace=marketplace)
     return asyncio.run(scraper.get_categories())
+
+def sync_get_new_releases(marketplace: str, category: str, pages: int = 1) -> List[Product]:
+    """同步版本的新品榜抓取"""
+    scraper = PlaywrightScraper(marketplace=marketplace)
+    return asyncio.run(scraper.get_new_releases(category, pages))
+
+def sync_get_movers_shakers(marketplace: str, category: str, pages: int = 1) -> List[Product]:
+    """同步版本的飙升榜抓取"""
+    scraper = PlaywrightScraper(marketplace=marketplace)
+    return asyncio.run(scraper.get_movers_shakers(category, pages))

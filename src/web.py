@@ -171,7 +171,15 @@ INDEX_HTML = """<!DOCTYPE html>
           <label>页数</label>
           <input type="number" id="pages" value="2" min="1" max="5" style="min-width:80px">
         </div>
-        <button class="btn btn-primary" onclick="doScan()">扫描 Best Sellers</button>
+        <div class="form-group">
+          <label>榜单类型</label>
+          <select id="scan_type">
+            <option value="bestsellers">🏆 Best Sellers 畅销榜</option>
+            <option value="new_releases">🆕 New Releases 新品榜</option>
+            <option value="movers_shakers">🚀 Movers & Shakers 飙升榜</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="doScan()">🔍 扫描榜单</button>
       </div>
       <div style="margin-top:12px;display:flex;gap:12px;align-items:end;flex-wrap:wrap">
         <div class="form-group"><label>关键词搜索</label><input type="text" id="keyword" placeholder="如 garlic press"></div>
@@ -380,9 +388,11 @@ async function doScan() {
   const pages = document.getElementById('pages').value;
   const mp = document.getElementById('marketplace').value;
   const ds = document.getElementById('datasource').value;
-  showLoading('正在扫描 ' + cat + ' (' + (ds === 'playwright' ? 'Playwright' : 'Rainforest') + ') ...');
+  const lt = document.getElementById('scan_type').value;
+  const typeNames = {bestsellers:'Best Sellers 畅销榜', new_releases:'New Releases 新品榜', movers_shakers:'Movers & Shakers 飙升榜'};
+  showLoading('正在扫描 ' + typeNames[lt] + ' — ' + cat + ' (' + (ds === 'playwright' ? 'Playwright' : 'Rainforest') + ') ...');
   try {
-    const resp = await fetch('/api/scan?category=' + encodeURIComponent(cat) + '&pages=' + pages + '&marketplace=' + mp + '&datasource=' + ds);
+    const resp = await fetch('/api/scan?category=' + encodeURIComponent(cat) + '&pages=' + pages + '&marketplace=' + mp + '&datasource=' + ds + '&list_type=' + lt);
     const data = await resp.json();
     if (data.ok) window.location.reload();
     else { alert('扫描失败: ' + data.error); hideLoading(); }
@@ -804,27 +814,47 @@ def api_scan():
     category = request.args.get("category", "Home & Kitchen")
     pages = int(request.args.get("pages", 2))
     marketplace = request.args.get("marketplace", config.get("rainforest", {}).get("marketplace", "us"))
+    list_type = request.args.get("list_type", "bestsellers")
     try:
         datasource = request.args.get("datasource", "rainforest")
         if datasource == "playwright":
-            from src.collectors.playwright_scraper import sync_get_best_sellers
-            products = sync_get_best_sellers(marketplace, category, pages)
+            if list_type == "new_releases":
+                from src.collectors.playwright_scraper import sync_get_new_releases
+                products = sync_get_new_releases(marketplace, category, pages)
+            elif list_type == "movers_shakers":
+                from src.collectors.playwright_scraper import sync_get_movers_shakers
+                products = sync_get_movers_shakers(marketplace, category, pages)
+            else:
+                from src.collectors.playwright_scraper import sync_get_best_sellers
+                products = sync_get_best_sellers(marketplace, category, pages)
         else:
             rf = config.get("rainforest", {})
             try:
                 collector = RainforestCollector(
                     api_key=rf.get("api_key", ""), marketplace=marketplace
                 )
-                products = collector.get_best_sellers(category, pages)
+                if list_type == "new_releases":
+                    products = collector.get_new_releases(category, pages) if hasattr(collector, 'get_new_releases') else []
+                elif list_type == "movers_shakers":
+                    products = collector.get_movers_shakers(category, pages) if hasattr(collector, 'get_movers_shakers') else []
+                else:
+                    products = collector.get_best_sellers(category, pages)
             except Exception as e:
                 print(f"Rainforest 失败，自动降级到 Playwright: {e}")
-                from src.collectors.playwright_scraper import sync_get_best_sellers
-                products = sync_get_best_sellers(marketplace, category, pages)
+                if list_type == "new_releases":
+                    from src.collectors.playwright_scraper import sync_get_new_releases
+                    products = sync_get_new_releases(marketplace, category, pages)
+                elif list_type == "movers_shakers":
+                    from src.collectors.playwright_scraper import sync_get_movers_shakers
+                    products = sync_get_movers_shakers(marketplace, category, pages)
+                else:
+                    from src.collectors.playwright_scraper import sync_get_best_sellers
+                    products = sync_get_best_sellers(marketplace, category, pages)
         if not products:
             return jsonify({"ok": False, "error": "未获取到产品"})
         for p in products:
             p.marketplace = marketplace
-        _run_pipeline(products, config, "bestsellers", category, pages)
+        _run_pipeline(products, config, list_type, category, pages)
         return jsonify({"ok": True, "count": len(products)})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
