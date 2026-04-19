@@ -57,10 +57,38 @@ CREATE TABLE IF NOT EXISTS scans (
 );
 """
 
+CREATE_COMPARISONS_TABLE = """
+CREATE TABLE IF NOT EXISTS comparisons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    asins TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_FAVORITES_TABLE = """
+CREATE TABLE IF NOT EXISTS favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asin TEXT UNIQUE NOT NULL,
+    group_name TEXT DEFAULT '默认',
+    notes TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_PRICE_HISTORY_TABLE = """
+CREATE TABLE IF NOT EXISTS price_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asin TEXT NOT NULL,
+    price REAL,
+    bsr INTEGER,
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 
 def get_db_path() -> str:
     """获取数据库路径"""
-    # 数据库文件在项目目录的 db/ 下
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     db_dir = os.path.join(base_dir, "db")
     os.makedirs(db_dir, exist_ok=True)
@@ -82,6 +110,9 @@ def init_db():
 
     cursor.execute(CREATE_PRODUCTS_TABLE)
     cursor.execute(CREATE_SCANS_TABLE)
+    cursor.execute(CREATE_COMPARISONS_TABLE)
+    cursor.execute(CREATE_FAVORITES_TABLE)
+    cursor.execute(CREATE_PRICE_HISTORY_TABLE)
 
     conn.commit()
     conn.close()
@@ -89,14 +120,7 @@ def init_db():
 
 
 def save_products(products: list) -> int:
-    """保存产品到数据库（存在则更新）
-
-    Args:
-        products: 产品列表
-
-    Returns:
-        保存的产品数量
-    """
+    """保存产品到数据库（存在则更新）"""
     conn = get_connection()
     cursor = conn.cursor()
     saved = 0
@@ -149,55 +173,135 @@ def save_scan(scan_type: str, query: str, pages: int,
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        """
-        INSERT INTO scans (scan_type, query, pages, products_found, products_filtered)
-        VALUES (?, ?, ?, ?, ?)
-        """,
+        "INSERT INTO scans (scan_type, query, pages, products_found, products_filtered) VALUES (?, ?, ?, ?, ?)",
         (scan_type, query, pages, found, filtered),
     )
     conn.commit()
     conn.close()
 
 
-def get_top_products(limit: int = 20) -> list:
-    """获取评分最高的产品
-
-    Args:
-        limit: 返回数量
-
-    Returns:
-        产品列表（字典格式）
-    """
+def save_price_snapshot(products: list) -> None:
+    """保存价格快照到 price_history"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT * FROM products
-        ORDER BY total_score DESC
-        LIMIT ?
-        """,
-        (limit,),
-    )
+    for p in products:
+        data = p.to_dict() if hasattr(p, 'to_dict') else p
+        try:
+            cursor.execute(
+                "INSERT INTO price_history (asin, price, bsr) VALUES (?, ?, ?)",
+                (data.get('asin'), data.get('price'), data.get('bsr')),
+            )
+        except sqlite3.Error:
+            pass
+    conn.commit()
+    conn.close()
+
+
+def get_top_products(limit: int = 20) -> list:
+    """获取评分最高的产品"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM products ORDER BY total_score DESC LIMIT ?", (limit,))
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
 
 
 def get_product_by_asin(asin: str) -> dict:
-    """根据 ASIN 获取产品
-
-    Args:
-        asin: 产品 ASIN
-
-    Returns:
-        产品字典（未找到返回空字典）
-    """
+    """根据 ASIN 获取产品"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM products WHERE asin = ?", (asin,))
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else {}
+
+
+def get_products_by_asins(asins: list) -> list:
+    """根据多个 ASIN 获取产品"""
+    if not asins:
+        return []
+    conn = get_connection()
+    cursor = conn.cursor()
+    placeholders = ','.join(['?'] * len(asins))
+    cursor.execute(f"SELECT * FROM products WHERE asin IN ({placeholders})", asins)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_favorites(group: str = None) -> list:
+    """获取收藏列表"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if group and group != '全部':
+        cursor.execute("SELECT * FROM favorites WHERE group_name = ? ORDER BY created_at DESC", (group,))
+    else:
+        cursor.execute("SELECT * FROM favorites ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def add_favorite(asin: str, group_name: str = '默认', notes: str = '') -> bool:
+    """添加收藏"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO favorites (asin, group_name, notes) VALUES (?, ?, ?)",
+            (asin, group_name, notes),
+        )
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+
+def remove_favorite(asin: str) -> bool:
+    """移除收藏"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM favorites WHERE asin = ?", (asin,))
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
+
+def is_favorite(asin: str) -> bool:
+    """检查是否已收藏"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM favorites WHERE asin = ?", (asin,))
+    result = cursor.fetchone()
+    conn.close()
+    return result is not None
+
+
+def get_price_history(asin: str) -> list:
+    """获取价格历史"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT price, bsr, recorded_at FROM price_history WHERE asin = ? ORDER BY recorded_at ASC",
+        (asin,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_favorite_groups() -> list:
+    """获取所有收藏分组"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT group_name FROM favorites ORDER BY group_name")
+    rows = cursor.fetchall()
+    conn.close()
+    return [row['group_name'] for row in rows]
 
 
 if __name__ == "__main__":
