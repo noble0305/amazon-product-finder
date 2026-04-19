@@ -15,6 +15,8 @@ from scripts.init_db import (
     save_products, save_scan, save_price_snapshot,
     get_favorites, add_favorite, remove_favorite, is_favorite,
     get_price_history, get_favorite_groups,
+    create_price_alert, get_price_alerts, delete_price_alert, check_price_alerts,
+    create_bsr_alert, get_bsr_alerts, delete_bsr_alert, check_bsr_alerts,
 )
 from src.collectors.rainforest import RainforestCollector
 from src.collectors.keepa import KeepaCollector
@@ -118,6 +120,7 @@ INDEX_HTML = """<!DOCTYPE html>
     <button class="tab active" onclick="switchTab('overview')">📊 概览</button>
     <button class="tab" onclick="switchTab('favorites')">⭐ 收藏夹</button>
     <button class="tab" onclick="switchTab('category-report')">📈 品类报告</button>
+    <button class="tab" onclick="switchTab('trend-monitor')">📈 趋势监控</button>
   </div>
 
   <!-- ═══ 概览 Tab ═══ -->
@@ -225,7 +228,7 @@ INDEX_HTML = """<!DOCTYPE html>
           <td>#{{ p.bsr }}</td>
           <td>{{ p.rating }}/5.0</td>
           <td><button class="fav-btn {{ 'active' if p.asin in fav_asins else '' }}" onclick="toggleFav('{{ p.asin }}',this)">⭐</button></td>
-          <td><a class="detail-link" href="/detail/{{ p.asin }}">详情 →</a></td>
+          <td style="white-space:nowrap"><button class="btn btn-sm btn-secondary" style="padding:2px 6px;font-size:14px" onclick="quickAlert('{{ p.asin }}','{{ "%.2f"|format(p.price) }}')" title="快速预警">🔔</button> <a class="detail-link" href="/detail/{{ p.asin }}">详情 →</a></td>
         </tr>
         {% endfor %}
         </tbody>
@@ -247,6 +250,66 @@ INDEX_HTML = """<!DOCTYPE html>
     <div class="card">
       <h2>⭐ 我的收藏</h2>
       <div id="fav-content"><div class="empty">加载中...</div></div>
+    </div>
+  </div>
+
+  <!-- ═══ 趋势监控 Tab ═══ -->
+  <div class="tab-panel" id="tab-trend-monitor">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <!-- 价格预警 -->
+      <div class="card">
+        <h2>🔔 价格预警</h2>
+        <div class="form-row" style="margin-bottom:16px">
+          <div class="form-group"><label>ASIN</label><input type="text" id="alert-asin" placeholder="输入 ASIN" style="min-width:140px"></div>
+          <div class="form-group"><label>预警类型</label>
+            <select id="alert-type" style="min-width:150px" onchange="onAlertTypeChange()">
+              <option value="price_drop">📉 价格下跌</option>
+              <option value="price_surge">📈 价格上涨</option>
+              <option value="below_target">🎯 低于目标价</option>
+            </select>
+          </div>
+          <div class="form-group" id="threshold-group"><label>阈值 (%)</label><input type="number" id="alert-threshold" value="10" min="1" max="50" style="min-width:80px"></div>
+          <div class="form-group" id="target-group" style="display:none"><label>目标价格 ($)</label><input type="number" id="alert-target" step="0.01" style="min-width:100px"></div>
+          <button class="btn btn-primary" onclick="addAlert()">添加</button>
+        </div>
+        <div id="alerts-list"></div>
+      </div>
+
+      <!-- BSR 监控 -->
+      <div class="card">
+        <h2>📊 BSR 异动监控</h2>
+        <div class="form-row" style="margin-bottom:16px">
+          <div class="form-group"><label>ASIN</label><input type="text" id="bsr-alert-asin" placeholder="输入 ASIN" style="min-width:140px"></div>
+          <div class="form-group"><label>变动类型</label>
+            <select id="bsr-alert-type" style="min-width:150px">
+              <option value="bsr_surge">🚀 排名上升</option>
+              <option value="bsr_drop">📉 排名下降</option>
+            </select>
+          </div>
+          <div class="form-group"><label>阈值 (%)</label><input type="number" id="bsr-threshold" value="20" min="1" max="100" style="min-width:80px"></div>
+          <button class="btn btn-primary" onclick="addBsrAlert()">添加</button>
+        </div>
+        <div id="bsr-alerts-list"></div>
+      </div>
+    </div>
+
+    <!-- 触发历史 -->
+    <div class="card">
+      <h2>📋 预警触发记录</h2>
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="checkAllAlerts()">🔍 立即检查所有预警</button>
+      </div>
+      <div id="triggered-list"><div class="empty">点击上方按钮检查预警</div></div>
+    </div>
+
+    <!-- BSR 趋势小图表 -->
+    <div class="card">
+      <h2>📉 BSR 趋势概览</h2>
+      <div class="form-row" style="margin-bottom:12px">
+        <div class="form-group"><label>ASIN</label><input type="text" id="bsr-trend-asin" placeholder="输入 ASIN 查看 BSR 趋势" style="min-width:200px"></div>
+        <button class="btn btn-secondary" onclick="loadBsrChart()">查看趋势</button>
+      </div>
+      <div id="bsr-chart-area"></div>
     </div>
   </div>
 
@@ -471,6 +534,152 @@ async function removeFav(asin) {
   loadFavorites();
 }
 
+function onAlertTypeChange() {
+  const t = document.getElementById('alert-type').value;
+  document.getElementById('threshold-group').style.display = t === 'below_target' ? 'none' : '';
+  document.getElementById('target-group').style.display = t === 'below_target' ? '' : 'none';
+}
+
+async function addAlert() {
+  const asin = document.getElementById('alert-asin').value.trim();
+  if (!asin) { alert('请输入 ASIN'); return; }
+  const alert_type = document.getElementById('alert-type').value;
+  const threshold = parseFloat(document.getElementById('alert-threshold').value) || 10;
+  const target = parseFloat(document.getElementById('alert-target').value) || null;
+  const resp = await fetch('/api/alerts', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({asin, alert_type, threshold_pct: threshold, target_price: target})
+  });
+  const data = await resp.json();
+  if (data.ok) { document.getElementById('alert-asin').value = ''; loadAlerts(); }
+  else { alert(data.error || '添加失败'); }
+}
+
+async function loadAlerts() {
+  const resp = await fetch('/api/alerts');
+  const data = await resp.json();
+  const el = document.getElementById('alerts-list');
+  if (!data.alerts || data.alerts.length === 0) { el.innerHTML = '<div class="empty">暂无价格预警规则</div>'; return; }
+  const typeMap = {price_drop: '📉 价格下跌', price_surge: '📈 价格上涨', below_target: '🎯 低于目标价'};
+  let html = '<table><thead><tr><th>ASIN</th><th>类型</th><th>阈值/目标</th><th>状态</th><th>创建时间</th><th>触发时间</th><th>操作</th></tr></thead><tbody>';
+  data.alerts.forEach(a => {
+    const active = a.is_active ? '<span class="badge badge-green">正常</span>' : '<span class="badge badge-red">已暂停</span>';
+    const threshold = a.alert_type === 'below_target' ? '$' + (a.target_price || 0).toFixed(2) : a.threshold_pct + '%';
+    html += '<tr><td><code>' + a.asin + '</code></td><td>' + (typeMap[a.alert_type] || a.alert_type) + '</td><td>' + threshold + '</td><td>' + active + '</td><td>' + (a.created_at || '').slice(0, 16) + '</td><td>' + (a.triggered_at ? a.triggered_at.slice(0, 16) : '-') + '</td><td><button class="btn btn-danger btn-sm" onclick="delAlert(' + a.id + ')">删除</button></td></tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+async function delAlert(id) {
+  await fetch('/api/alerts/' + id, {method: 'DELETE'});
+  loadAlerts();
+}
+
+async function addBsrAlert() {
+  const asin = document.getElementById('bsr-alert-asin').value.trim();
+  if (!asin) { alert('请输入 ASIN'); return; }
+  const alert_type = document.getElementById('bsr-alert-type').value;
+  const threshold = parseFloat(document.getElementById('bsr-threshold').value) || 20;
+  const resp = await fetch('/api/bsr-alerts', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({asin, alert_type, threshold_pct: threshold})
+  });
+  const data = await resp.json();
+  if (data.ok) { document.getElementById('bsr-alert-asin').value = ''; loadBsrAlerts(); }
+  else { alert(data.error || '添加失败'); }
+}
+
+async function loadBsrAlerts() {
+  const resp = await fetch('/api/bsr-alerts');
+  const data = await resp.json();
+  const el = document.getElementById('bsr-alerts-list');
+  if (!data.alerts || data.alerts.length === 0) { el.innerHTML = '<div class="empty">暂无 BSR 监控规则</div>'; return; }
+  const typeMap = {bsr_surge: '🚀 排名上升', bsr_drop: '📉 排名下降'};
+  let html = '<table><thead><tr><th>ASIN</th><th>类型</th><th>阈值</th><th>状态</th><th>创建时间</th><th>触发时间</th><th>操作</th></tr></thead><tbody>';
+  data.alerts.forEach(a => {
+    const active = a.is_active ? '<span class="badge badge-green">正常</span>' : '<span class="badge badge-red">已暂停</span>';
+    html += '<tr><td><code>' + a.asin + '</code></td><td>' + (typeMap[a.alert_type] || a.alert_type) + '</td><td>' + a.threshold_pct + '%</td><td>' + active + '</td><td>' + (a.created_at || '').slice(0, 16) + '</td><td>' + (a.triggered_at ? a.triggered_at.slice(0, 16) : '-') + '</td><td><button class="btn btn-danger btn-sm" onclick="delBsrAlert(' + a.id + ')">删除</button></td></tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+async function delBsrAlert(id) {
+  await fetch('/api/bsr-alerts/' + id, {method: 'DELETE'});
+  loadBsrAlerts();
+}
+
+async function checkAllAlerts() {
+  const el = document.getElementById('triggered-list');
+  el.innerHTML = '<div class="loading show"><div class="spinner"></div><p>正在检查预警...</p></div>';
+  const [priceResp, bsrResp] = await Promise.all([fetch('/api/alerts/check'), fetch('/api/bsr-alerts/check')]);
+  const priceData = await priceResp.json();
+  const bsrData = await bsrResp.json();
+  const all = [...(priceData.triggered || []).map(t => ({...t, _type: 'price'})), ...(bsrData.triggered || []).map(t => ({...t, _type: 'bsr'}))];
+  if (all.length === 0) { el.innerHTML = '<div class="empty" style="color:#10b981">✅ 所有预警正常，暂无触发</div>'; return; }
+  const typeMap = {price_drop: '📉 价格下跌', price_surge: '📈 价格上涨', below_target: '🎯 低于目标价', bsr_surge: '🚀 BSR排名上升', bsr_drop: '📉 BSR排名下降'};
+  let html = '<table><thead><tr><th>类型</th><th>ASIN</th><th>详情</th></tr></thead><tbody>';
+  all.forEach(t => {
+    let detail = '';
+    if (t._type === 'price') {
+      detail = '当前 $' + (t.current_price||0).toFixed(2) + ' → 变动 ' + t.change_pct + '%';
+      if (t.alert_type === 'below_target') detail = '当前 $' + (t.current_price||0).toFixed(2) + ' < 目标 $' + (t.target_price||0).toFixed(2);
+    } else {
+      detail = '当前 #' + t.current_bsr + ' (之前 #' + t.prev_bsr + ') → 变动 ' + t.change_pct + '%';
+    }
+    html += '<tr><td><span class="badge badge-red">' + (typeMap[t.alert_type]||t.alert_type) + '</span></td><td><code>' + t.asin + '</code></td><td>' + detail + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+  // refresh lists
+  loadAlerts(); loadBsrAlerts();
+}
+
+function quickAlert(asin, price) {
+  // Switch to trend monitor tab
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab')[3].classList.add('active');
+  document.getElementById('tab-trend-monitor').classList.add('active');
+  document.getElementById('alert-asin').value = asin;
+  document.getElementById('alert-type').value = 'below_target';
+  onAlertTypeChange();
+  document.getElementById('alert-target').value = (parseFloat(price) * 0.9).toFixed(2);
+  loadAlerts(); loadBsrAlerts();
+}
+
+async function loadBsrChart() {
+  const asin = document.getElementById('bsr-trend-asin').value.trim();
+  if (!asin) { alert('请输入 ASIN'); return; }
+  const resp = await fetch('/api/trend/' + asin);
+  const data = await resp.json();
+  const el = document.getElementById('bsr-chart-area');
+  const history = data.history || [];
+  if (history.length < 2) { el.innerHTML = '<div class="empty">暂无足够数据</div>'; return; }
+  // CSS bar chart for BSR
+  const bsrValues = history.map(h => h.bsr).filter(v => v && v > 0);
+  if (bsrValues.length < 2) { el.innerHTML = '<div class="empty">暂无 BSR 数据</div>'; return; }
+  const maxBsr = Math.max(...bsrValues);
+  let html = '<div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding:10px 0">';
+  history.forEach((h, i) => {
+    if (!h.bsr || h.bsr <= 0) return;
+    const height = Math.max(8, (h.bsr / maxBsr) * 100);
+    const color = i === history.length - 1 ? '#6366f1' : '#c4b5fd';
+    html += '<div title="BSR #' + h.bsr + '" style="flex:1;max-width:30px;height:' + height + '%;background:' + color + ';border-radius:3px 3px 0 0;min-height:4px;transition:height .3s"></div>';
+  });
+  html += '</div>';
+  html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8"><span>' + history[0].recorded_at.slice(5,10) + '</span><span>BSR #' + bsrValues[bsrValues.length-1] + '</span><span>' + history[history.length-1].recorded_at.slice(5,10) + '</span></div>';
+  el.innerHTML = html;
+}
+
+// Load alerts when switching to trend tab
+const origSwitchTab = switchTab;
+switchTab = function(name) {
+  origSwitchTab(name);
+  if (name === 'trend-monitor') { loadAlerts(); loadBsrAlerts(); }
+};
+
 async function genCategoryReport() {
   const cat = document.getElementById('report-category').value;
   const mp = document.getElementById('report-marketplace').value;
@@ -579,6 +788,22 @@ DETAIL_HTML = """<!DOCTYPE html>
   </div>
 
   <div class="card">
+    <h2>🔔 快速创建预警</h2>
+    <div class="form-row">
+      <div class="form-group"><label>ASIN</label><input type="text" value="{{ p.asin }}" readonly style="min-width:140px;background:#f8fafc"></div>
+      <div class="form-group"><label>预警类型</label>
+        <select id="detail-alert-type" style="min-width:150px">
+          <option value="price_drop">📉 价格下跌</option>
+          <option value="price_surge">📈 价格上涨</option>
+          <option value="below_target">🎯 低于目标价</option>
+        </select>
+      </div>
+      <div class="form-group"><label>阈值/目标</label><input type="number" id="detail-alert-val" value="10" step="0.01" style="min-width:100px"></div>
+      <button class="btn btn-primary" onclick="createDetailAlert()">创建预警</button>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>🤖 AI 分析</h2>
     {% if p.ai_analysis %}
     <div style="background:rgba(30,22,60,.4);border-radius:8px;padding:16px;font-size:14px;line-height:1.8;white-space:pre-wrap">{{ p.ai_analysis }}</div>
@@ -639,6 +864,22 @@ if (trendData.length > 1) {
   });
 } else {
   document.getElementById('trendChart').parentElement.innerHTML += '<div class="empty">暂无足够的价格历史数据</div>';
+}
+
+async function createDetailAlert() {
+  const asin = '{{ p.asin }}';
+  const alert_type = document.getElementById('detail-alert-type').value;
+  const val = parseFloat(document.getElementById('detail-alert-val').value);
+  let body;
+  if (alert_type === 'below_target') {
+    body = {asin, alert_type, target_price: val};
+  } else {
+    body = {asin, alert_type, threshold_pct: val};
+  }
+  const resp = await fetch('/api/alerts', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  const data = await resp.json();
+  if (data.ok) alert('预警创建成功！');
+  else alert(data.error || '创建失败');
 }
 </script>
 </body>
@@ -950,6 +1191,69 @@ def api_get_favorites():
 def api_trend(asin):
     history = get_price_history(asin)
     return jsonify({"ok": True, "history": history})
+
+
+@app.route("/api/alerts", methods=["GET", "POST"])
+def api_alerts():
+    if request.method == "POST":
+        data = request.get_json() or request.form
+        asin = data.get("asin", "").strip()
+        alert_type = data.get("alert_type", "")
+        if not asin or not alert_type:
+            return jsonify({"ok": False, "error": "缺少 asin 或 alert_type"})
+        threshold_pct = float(data.get("threshold_pct", 10))
+        target_price = data.get("target_price")
+        if target_price is not None:
+            target_price = float(target_price)
+        result = create_price_alert(asin, alert_type, target_price, threshold_pct)
+        if "error" in result:
+            return jsonify({"ok": False, "error": result["error"]})
+        return jsonify({"ok": True, "alert": result})
+    else:
+        alerts = get_price_alerts()
+        return jsonify({"ok": True, "alerts": alerts})
+
+
+@app.route("/api/alerts/check")
+def api_alerts_check():
+    triggered = check_price_alerts()
+    return jsonify({"ok": True, "triggered": triggered})
+
+
+@app.route("/api/alerts/<int:alert_id>", methods=["DELETE"])
+def api_delete_alert(alert_id):
+    ok = delete_price_alert(alert_id)
+    return jsonify({"ok": ok})
+
+
+@app.route("/api/bsr-alerts", methods=["GET", "POST"])
+def api_bsr_alerts():
+    if request.method == "POST":
+        data = request.get_json() or request.form
+        asin = data.get("asin", "").strip()
+        alert_type = data.get("alert_type", "")
+        if not asin or not alert_type:
+            return jsonify({"ok": False, "error": "缺少 asin 或 alert_type"})
+        threshold_pct = float(data.get("threshold_pct", 20))
+        result = create_bsr_alert(asin, alert_type, threshold_pct)
+        if "error" in result:
+            return jsonify({"ok": False, "error": result["error"]})
+        return jsonify({"ok": True, "alert": result})
+    else:
+        alerts = get_bsr_alerts()
+        return jsonify({"ok": True, "alerts": alerts})
+
+
+@app.route("/api/bsr-alerts/check")
+def api_bsr_alerts_check():
+    triggered = check_bsr_alerts()
+    return jsonify({"ok": True, "triggered": triggered})
+
+
+@app.route("/api/bsr-alerts/<int:alert_id>", methods=["DELETE"])
+def api_delete_bsr_alert(alert_id):
+    ok = delete_bsr_alert(alert_id)
+    return jsonify({"ok": ok})
 
 
 @app.route("/api/report/category", methods=["POST"])

@@ -88,6 +88,33 @@ CREATE TABLE IF NOT EXISTS price_history (
 );
 """
 
+CREATE_PRICE_ALERTS_TABLE = """
+CREATE TABLE IF NOT EXISTS price_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asin TEXT NOT NULL,
+    alert_type TEXT NOT NULL,
+    target_price REAL,
+    threshold_pct REAL DEFAULT 10,
+    is_active INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    triggered_at TIMESTAMP,
+    UNIQUE(asin, alert_type, target_price)
+);
+"""
+
+CREATE_BSR_ALERTS_TABLE = """
+CREATE TABLE IF NOT EXISTS bsr_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asin TEXT NOT NULL,
+    alert_type TEXT NOT NULL,
+    threshold_pct REAL DEFAULT 20,
+    is_active INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    triggered_at TIMESTAMP,
+    UNIQUE(asin, alert_type)
+);
+"""
+
 
 def get_db_path() -> str:
     """获取数据库路径"""
@@ -115,6 +142,8 @@ def init_db():
     cursor.execute(CREATE_COMPARISONS_TABLE)
     cursor.execute(CREATE_FAVORITES_TABLE)
     cursor.execute(CREATE_PRICE_HISTORY_TABLE)
+    cursor.execute(CREATE_PRICE_ALERTS_TABLE)
+    cursor.execute(CREATE_BSR_ALERTS_TABLE)
 
     # 迁移：确保 marketplace 列存在
     try:
@@ -307,6 +336,194 @@ def get_price_history(asin: str) -> list:
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+# ─── 价格预警 CRUD ────────────────────────────────────────────
+
+def create_price_alert(asin: str, alert_type: str, target_price: float = None, threshold_pct: float = 10) -> dict:
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO price_alerts (asin, alert_type, target_price, threshold_pct) VALUES (?, ?, ?, ?)",
+            (asin, alert_type, target_price, threshold_pct),
+        )
+        conn.commit()
+        alert_id = cursor.lastrowid
+        cursor.execute("SELECT * FROM price_alerts WHERE id = ?", (alert_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else {}
+    except sqlite3.IntegrityError:
+        return {"error": "该预警规则已存在"}
+    finally:
+        conn.close()
+
+
+def get_price_alerts(active_only: bool = False) -> list:
+    conn = get_connection()
+    cursor = conn.cursor()
+    if active_only:
+        cursor.execute("SELECT * FROM price_alerts WHERE is_active = 1 ORDER BY created_at DESC")
+    else:
+        cursor.execute("SELECT * FROM price_alerts ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_price_alert(alert_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM price_alerts WHERE id = ?", (alert_id,))
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
+
+def check_price_alerts() -> list:
+    """检查所有活跃的价格预警，返回触发的预警列表"""
+    alerts = get_price_alerts(active_only=True)
+    triggered = []
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    for alert in alerts:
+        asin = alert['asin']
+        # 获取最近2条价格记录
+        cursor.execute(
+            "SELECT price, recorded_at FROM price_history WHERE asin = ? ORDER BY recorded_at DESC LIMIT 2",
+            (asin,)
+        )
+        rows = cursor.fetchall()
+        if len(rows) < 2:
+            continue
+
+        current_price = rows[0]['price']
+        prev_price = rows[1]['price']
+
+        if prev_price and prev_price > 0:
+            change_pct = (current_price - prev_price) / prev_price * 100
+        else:
+            continue
+
+        fired = False
+        if alert['alert_type'] == 'price_drop' and change_pct < -alert['threshold_pct']:
+            fired = True
+        elif alert['alert_type'] == 'price_surge' and change_pct > alert['threshold_pct']:
+            fired = True
+        elif alert['alert_type'] == 'below_target' and alert['target_price'] and current_price < alert['target_price']:
+            fired = True
+
+        if fired:
+            cursor.execute(
+                "UPDATE price_alerts SET triggered_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (alert['id'],)
+            )
+            triggered.append({
+                **alert,
+                'current_price': current_price,
+                'prev_price': prev_price,
+                'change_pct': round(change_pct, 2),
+            })
+
+    conn.commit()
+    conn.close()
+    return triggered
+
+
+# ─── BSR 预警 CRUD ──────────────────────────────────────────────
+
+def create_bsr_alert(asin: str, alert_type: str, threshold_pct: float = 20) -> dict:
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO bsr_alerts (asin, alert_type, threshold_pct) VALUES (?, ?, ?)",
+            (asin, alert_type, threshold_pct),
+        )
+        conn.commit()
+        alert_id = cursor.lastrowid
+        cursor.execute("SELECT * FROM bsr_alerts WHERE id = ?", (alert_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else {}
+    except sqlite3.IntegrityError:
+        return {"error": "该 BSR 预警规则已存在"}
+    finally:
+        conn.close()
+
+
+def get_bsr_alerts(active_only: bool = False) -> list:
+    conn = get_connection()
+    cursor = conn.cursor()
+    if active_only:
+        cursor.execute("SELECT * FROM bsr_alerts WHERE is_active = 1 ORDER BY created_at DESC")
+    else:
+        cursor.execute("SELECT * FROM bsr_alerts ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_bsr_alert(alert_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM bsr_alerts WHERE id = ?", (alert_id,))
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
+
+def check_bsr_alerts() -> list:
+    """检查所有活跃的 BSR 预警，返回触发的预警列表"""
+    alerts = get_bsr_alerts(active_only=True)
+    triggered = []
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    for alert in alerts:
+        asin = alert['asin']
+        cursor.execute(
+            "SELECT bsr, recorded_at FROM price_history WHERE asin = ? ORDER BY recorded_at DESC LIMIT 2",
+            (asin,)
+        )
+        rows = cursor.fetchall()
+        if len(rows) < 2:
+            continue
+
+        current_bsr = rows[0]['bsr']
+        prev_bsr = rows[1]['bsr']
+
+        if prev_bsr and prev_bsr > 0:
+            # BSR 下降 = 排名上升（好），BSR 上升 = 排名下降（差）
+            change_pct = (current_bsr - prev_bsr) / prev_bsr * 100
+        else:
+            continue
+
+        fired = False
+        # bsr_drop = 排名下降（BSR 数值上升）
+        if alert['alert_type'] == 'bsr_drop' and change_pct > alert['threshold_pct']:
+            fired = True
+        # bsr_surge = 排名上升（BSR 数值下降）
+        elif alert['alert_type'] == 'bsr_surge' and change_pct < -alert['threshold_pct']:
+            fired = True
+
+        if fired:
+            cursor.execute(
+                "UPDATE bsr_alerts SET triggered_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (alert['id'],)
+            )
+            triggered.append({
+                **alert,
+                'current_bsr': current_bsr,
+                'prev_bsr': prev_bsr,
+                'change_pct': round(change_pct, 2),
+            })
+
+    conn.commit()
+    conn.close()
+    return triggered
 
 
 def get_favorite_groups() -> list:
