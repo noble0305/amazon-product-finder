@@ -1366,7 +1366,7 @@ def index():
     for p in products:
         mp = p.get('marketplace', 'us')
         p['amazon_domain'] = RainforestCollector.MARKETPLACE_DOMAINS.get(mp, 'amazon.com')
-    return render_template_string(INDEX_HTML, products=products, stats=stats, fav_asins=fav_asins, marketplace=marketplace)
+    return render_template_string(INDEX_HTML, products=products, stats=stats, fav_asins=fav_asins, marketplace=marketplace, RainforestCollector=RainforestCollector)
 
 
 @app.route("/detail/<asin>")
