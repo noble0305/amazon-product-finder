@@ -17,6 +17,7 @@ from scripts.init_db import (
     get_price_history, get_favorite_groups,
     create_price_alert, get_price_alerts, delete_price_alert, check_price_alerts,
     create_bsr_alert, get_bsr_alerts, delete_bsr_alert, check_bsr_alerts,
+    import_products_from_list,
 )
 from src.collectors.rainforest import RainforestCollector
 from src.collectors.keepa import KeepaCollector
@@ -121,6 +122,7 @@ INDEX_HTML = """<!DOCTYPE html>
     <button class="tab" onclick="switchTab('favorites')">⭐ 收藏夹</button>
     <button class="tab" onclick="switchTab('category-report')">📈 品类报告</button>
     <button class="tab" onclick="switchTab('trend-monitor')">📈 趋势监控</button>
+    <button class="tab" onclick="switchTab('data-import')">📤 数据导入</button>
   </div>
 
   <!-- ═══ 概览 Tab ═══ -->
@@ -310,6 +312,75 @@ INDEX_HTML = """<!DOCTYPE html>
         <button class="btn btn-secondary" onclick="loadBsrChart()">查看趋势</button>
       </div>
       <div id="bsr-chart-area"></div>
+    </div>
+  </div>
+
+  <!-- ═══ 数据导入 Tab ═══ -->
+  <div class="tab-panel" id="tab-data-import">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <!-- 文件上传 -->
+      <div class="card">
+        <h2>📁 文件上传导入</h2>
+        <div id="drop-zone" style="border:2px dashed #c4b5fd;border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:.2s;background:#faf5ff" onmouseover="this.style.borderColor='#6366f1';this.style.background='rgba(99,102,241,.05)'" onmouseout="this.style.borderColor='#c4b5fd';this.style.background='#faf5ff'" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.style.borderColor='#6366f1';this.style.background='rgba(99,102,241,.08)'" ondragleave="this.style.borderColor='#c4b5fd';this.style.background='#faf5ff'" ondrop="handleDrop(event)">
+          <div style="font-size:40px;margin-bottom:8px">📄</div>
+          <div style="font-size:14px;color:#475569">拖拽文件到此处或点击选择</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:4px">支持 .csv / .xlsx（最大 10MB）</div>
+          <input type="file" id="file-input" accept=".csv,.xlsx" style="display:none" onchange="handleFileUpload(this.files[0])">
+        </div>
+        <div id="file-preview" style="margin-top:16px;display:none"></div>
+        <div id="column-mapping" style="margin-top:16px;display:none"></div>
+        <div id="import-actions" style="margin-top:16px;display:none">
+          <div class="form-row" style="margin-bottom:12px">
+            <div class="form-group">
+              <label>合并策略</label>
+              <select id="merge-strategy" style="min-width:150px">
+                <option value="merge">🔄 合并（仅更新非空字段）</option>
+                <option value="overwrite">✏️ 覆盖（完全替换）</option>
+                <option value="skip">⏭️ 跳过已存在</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="confirmImport()" id="confirm-import-btn">✅ 确认导入</button>
+          <div id="import-progress" style="margin-top:12px;display:none">
+            <div style="background:#e9ecef;border-radius:6px;height:8px;overflow:hidden"><div id="progress-bar" style="background:linear-gradient(135deg,#6366f1,#4f46e5);height:100%;width:0%;transition:width .3s"></div></div>
+            <div style="font-size:12px;color:#64748b;margin-top:4px" id="progress-text">导入中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 粘贴导入 -->
+      <div class="card">
+        <h2>📋 粘贴数据导入</h2>
+        <textarea id="paste-data" style="width:100%;min-height:200px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:monospace;resize:vertical" placeholder="粘贴从亚马逊后台复制的表格数据...\n支持逗号、制表符、分号分隔"></textarea>
+        <div style="margin-top:12px">
+          <button class="btn btn-secondary" onclick="parsePasteData()">🔍 解析数据</button>
+        </div>
+        <div id="paste-preview" style="margin-top:16px;display:none"></div>
+        <div id="paste-mapping" style="margin-top:16px;display:none"></div>
+        <div id="paste-actions" style="margin-top:16px;display:none">
+          <div class="form-row" style="margin-bottom:12px">
+            <div class="form-group">
+              <label>合并策略</label>
+              <select id="paste-merge-strategy" style="min-width:150px">
+                <option value="merge">🔄 合并</option>
+                <option value="overwrite">✏️ 覆盖</option>
+                <option value="skip">⏭️ 跳过</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="confirmPasteImport()">✅ 确认导入</button>
+          <div id="paste-progress" style="margin-top:12px;display:none">
+            <div style="background:#e9ecef;border-radius:6px;height:8px;overflow:hidden"><div id="paste-progress-bar" style="background:linear-gradient(135deg,#6366f1,#4f46e5);height:100%;width:0%;transition:width .3s"></div></div>
+            <div style="font-size:12px;color:#64748b;margin-top:4px" id="paste-progress-text">导入中...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 导入历史 -->
+    <div class="card" style="margin-top:20px">
+      <h2>📜 导入历史</h2>
+      <div id="import-history"><div class="empty">暂无导入记录</div></div>
     </div>
   </div>
 
@@ -696,6 +767,207 @@ async function genCategoryReport() {
     else el.innerHTML = '<div class="empty">' + data.error + '</div>';
   } catch(e) { el.innerHTML = '<div class="empty">生成失败: ' + e.message + '</div>'; }
 }
+
+// ═══ 数据导入功能 ═══
+let importData = [];
+let importMapping = {};
+let pasteData = [];
+let pasteMapping = {};
+let importHistory = JSON.parse(localStorage.getItem('importHistory') || '[]');
+
+const FIELD_OPTIONS = [
+  {value:'', label:'— 跳过 —'},
+  {value:'asin', label:'ASIN'},
+  {value:'title', label:'商品名称'},
+  {value:'brand', label:'品牌'},
+  {value:'category', label:'品类'},
+  {value:'price', label:'价格'},
+  {value:'rating', label:'评分'},
+  {value:'reviews_count', label:'评论数'},
+  {value:'bsr', label:'BSR排名'},
+  {value:'monthly_sales_est', label:'月销量'},
+  {value:'monthly_revenue_est', label:'月营收'},
+  {value:'search_volume', label:'搜索量'},
+  {value:'click_share', label:'点击份额'},
+  {value:'conversion_rate', label:'转化率'},
+  {value:'date_first_available', label:'上架日期'},
+  {value:'seller_count', label:'卖家数量'},
+  {value:'image_url', label:'图片URL'},
+];
+
+const AUTO_MAP = {
+  'asin':'asin','ASIN':'asin','title':'title','商品名称':'title','item_name':'title','product_title':'title',
+  'brand':'brand','品牌':'brand','category':'category','品类':'category','分类':'category',
+  'price':'price','价格':'price','average_price':'price','avg_price':'price','平均价格':'price',
+  'rating':'rating','评分':'rating','星级':'rating','stars':'rating',
+  'reviews_count':'reviews_count','评论数':'reviews_count','reviews':'reviews_count','评论数量':'reviews_count',
+  'bsr':'bsr','排名':'bsr','rank':'bsr','best_sellers_rank':'bsr',
+  'monthly_sales_est':'monthly_sales_est','月销量':'monthly_sales_est','estimated_monthly_sales':'monthly_sales_est',
+  'monthly_revenue_est':'monthly_revenue_est','月营收':'monthly_revenue_est',
+  'search_volume':'search_volume','搜索量':'search_volume','search_volume_90d':'search_volume',
+  'click_share':'click_share','点击份额':'click_share','click_share_%':'click_share',
+  'conversion_rate':'conversion_rate','转化率':'conversion_rate','商品转化率':'conversion_rate',
+  'date_first_available':'date_first_available','发布日期':'date_first_available','上架日期':'date_first_available',
+  'seller_count':'seller_count','卖家数量':'seller_count',
+  'image_url':'image_url','图片':'image_url','image':'image_url',
+};
+
+function autoMapColumns(cols) {
+  const mapping = {};
+  cols.forEach(c => { mapping[c] = AUTO_MAP[c] || ''; });
+  return mapping;
+}
+
+function renderMapping(cols, containerId, mappingObj, source) {
+  const el = document.getElementById(containerId);
+  el.style.display = 'block';
+  let html = '<h3 style="font-size:14px;margin-bottom:10px;color:#4338ca">📋 列映射</h3>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:300px;overflow-y:auto">';
+  cols.forEach(col => {
+    const auto = mappingObj[col] || '';
+    html += '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:#64748b;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + col + '">' + col + '</span>';
+    html += '<select data-col="' + col + '" style="font-size:12px;padding:3px 6px;min-width:0;flex:1" onchange="' + source + 'Mapping[\'' + col.replace(/'/g, "\\'") + '\']=this.value">';
+    FIELD_OPTIONS.forEach(opt => {
+      html += '<option value="' + opt.value + '"' + (auto === opt.value ? ' selected' : '') + '>' + opt.label + '</option>';
+    });
+    html += '</select></div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderPreview(rows, cols, containerId) {
+  const el = document.getElementById(containerId);
+  el.style.display = 'block';
+  const preview = rows.slice(0, 5);
+  let html = '<div style="font-size:12px;color:#64748b;margin-bottom:8px">共 ' + rows.length + ' 行数据，预览前 5 行：</div>';
+  html += '<div style="overflow-x:auto"><table style="font-size:12px"><thead><tr>';
+  cols.forEach(c => { html += '<th>' + c + '</th>'; });
+  html += '</tr></thead><tbody>';
+  preview.forEach(r => {
+    html += '<tr>';
+    cols.forEach(c => { html += '<td>' + (r[c] || '') + '</td>'; });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = '#c4b5fd';
+  e.currentTarget.style.background = '#faf5ff';
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileUpload(file);
+}
+
+async function handleFileUpload(file) {
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { alert('文件超过 10MB 限制'); return; }
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const resp = await fetch('/api/import/upload?preview=true', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!data.ok) { alert('解析失败: ' + data.error); return; }
+    importData = data.rows;
+    importMapping = autoMapColumns(data.columns);
+    renderPreview(data.rows, data.columns, 'file-preview');
+    renderMapping(data.columns, 'column-mapping', importMapping, 'import');
+    document.getElementById('import-actions').style.display = 'block';
+  } catch(e) { alert('上传失败: ' + e.message); }
+}
+
+async function confirmImport() {
+  const strategy = document.getElementById('merge-strategy').value;
+  const mapping = {};
+  document.querySelectorAll('#column-mapping select').forEach(sel => {
+    mapping[sel.dataset.col] = sel.value;
+  });
+  const btn = document.getElementById('confirm-import-btn');
+  btn.disabled = true;
+  document.getElementById('import-progress').style.display = 'block';
+  document.getElementById('progress-bar').style.width = '30%';
+  try {
+    const resp = await fetch('/api/import/confirm', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ columns_mapping: mapping, merge_strategy: strategy, data: importData })
+    });
+    document.getElementById('progress-bar').style.width = '100%';
+    const data = await resp.json();
+    if (data.ok) {
+      document.getElementById('progress-text').textContent = '✅ 导入完成！新增 ' + data.result.imported + ' / 更新 ' + data.result.updated + ' / 跳过 ' + data.result.skipped;
+      importHistory.unshift({ time: new Date().toLocaleString(), source: '文件上传', count: data.result.imported + data.result.updated });
+      importHistory = importHistory.slice(0, 5);
+      localStorage.setItem('importHistory', JSON.stringify(importHistory));
+      renderImportHistory();
+    } else {
+      document.getElementById('progress-text').textContent = '❌ ' + data.error;
+    }
+  } catch(e) {
+    document.getElementById('progress-text').textContent = '❌ ' + e.message;
+  }
+  btn.disabled = false;
+}
+
+async function parsePasteData() {
+  const raw = document.getElementById('paste-data').value.trim();
+  if (!raw) { alert('请粘贴数据'); return; }
+  try {
+    const resp = await fetch('/api/import/paste', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ raw_text: raw, merge_strategy: 'merge' })
+    });
+    const data = await resp.json();
+    if (!data.ok) { alert('解析失败: ' + data.error); return; }
+    pasteData = data.rows;
+    pasteMapping = autoMapColumns(data.columns);
+    renderPreview(data.rows, data.columns, 'paste-preview');
+    renderMapping(data.columns, 'paste-mapping', pasteMapping, 'paste');
+    document.getElementById('paste-actions').style.display = 'block';
+  } catch(e) { alert('解析失败: ' + e.message); }
+}
+
+async function confirmPasteImport() {
+  const strategy = document.getElementById('paste-merge-strategy').value;
+  const mapping = {};
+  document.querySelectorAll('#paste-mapping select').forEach(sel => {
+    mapping[sel.dataset.col] = sel.value;
+  });
+  document.getElementById('paste-progress').style.display = 'block';
+  document.getElementById('paste-progress-bar').style.width = '30%';
+  try {
+    const resp = await fetch('/api/import/confirm', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ columns_mapping: mapping, merge_strategy: strategy, data: pasteData })
+    });
+    document.getElementById('paste-progress-bar').style.width = '100%';
+    const data = await resp.json();
+    if (data.ok) {
+      document.getElementById('paste-progress-text').textContent = '✅ 导入完成！新增 ' + data.result.imported + ' / 更新 ' + data.result.updated + ' / 跳过 ' + data.result.skipped;
+      importHistory.unshift({ time: new Date().toLocaleString(), source: '粘贴导入', count: data.result.imported + data.result.updated });
+      importHistory = importHistory.slice(0, 5);
+      localStorage.setItem('importHistory', JSON.stringify(importHistory));
+      renderImportHistory();
+    } else {
+      document.getElementById('paste-progress-text').textContent = '❌ ' + data.error;
+    }
+  } catch(e) {
+    document.getElementById('paste-progress-text').textContent = '❌ ' + e.message;
+  }
+}
+
+function renderImportHistory() {
+  const el = document.getElementById('import-history');
+  if (importHistory.length === 0) { el.innerHTML = '<div class="empty">暂无导入记录</div>'; return; }
+  let html = '<table><thead><tr><th>时间</th><th>来源</th><th>导入数量</th></tr></thead><tbody>';
+  importHistory.forEach(h => {
+    html += '<tr><td>' + h.time + '</td><td>' + h.source + '</td><td>' + h.count + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+renderImportHistory();
 </script>
 </body>
 </html>"""
@@ -1394,6 +1666,125 @@ def export_download():
         mimetype="text/markdown",
         headers={"Content-Disposition": "attachment; filename=report.md"},
     )
+
+
+@app.route("/api/import/upload", methods=["POST"])
+def api_import_upload():
+    """文件上传导入（preview=true 时只预览）"""
+    if 'file' not in request.files:
+        return jsonify({"ok": False, "error": "请选择文件"})
+    f = request.files['file']
+    if not f.filename:
+        return jsonify({"ok": False, "error": "文件名为空"})
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in ('.csv', '.xlsx'):
+        return jsonify({"ok": False, "error": "仅支持 .csv 和 .xlsx 格式"})
+
+    try:
+        if ext == '.csv':
+            import pandas as pd
+            import io
+            df = pd.read_csv(io.BytesIO(f.read()), encoding='utf-8-sig')
+        else:
+            import pandas as pd
+            import io
+            df = pd.read_excel(io.BytesIO(f.read()), engine='openpyxl')
+
+        df = df.fillna('')
+        columns = list(df.columns)
+        rows = [dict(zip(columns, [str(v) if v != '' else '' for v in row])) for row in df.values.tolist()]
+
+        if request.args.get('preview') == 'true':
+            return jsonify({"ok": True, "columns": columns, "rows": rows, "total": len(rows)})
+
+        # Direct import without preview
+        result = import_products_from_list(rows, "merge")
+        return jsonify({"ok": True, "result": result})
+    except ImportError:
+        return jsonify({"ok": False, "error": "缺少 pandas 或 openpyxl 库"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/import/confirm", methods=["POST"])
+def api_import_confirm():
+    """确认导入"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "无效请求数据"})
+    columns_mapping = data.get('columns_mapping', {})
+    merge_strategy = data.get('merge_strategy', 'merge')
+    raw_data = data.get('data', [])
+
+    if not raw_data:
+        return jsonify({"ok": False, "error": "无数据"})
+
+    # Convert data according to mapping
+    products = []
+    for row in raw_data:
+        mapped = {}
+        for csv_col, value in row.items():
+            field = columns_mapping.get(csv_col)
+            if field:
+                # Type conversion
+                if field in ('price', 'rating', 'gross_profit', 'profit_margin', 'fba_fee', 'referral_fee', 'storage_fee', 'estimated_cost', 'monthly_revenue_est', 'click_share', 'conversion_rate'):
+                    try: mapped[field] = float(str(value).replace('%', '').replace('$', '').replace(',', '').strip() or 0)
+                    except: mapped[field] = 0
+                elif field in ('reviews_count', 'bsr', 'monthly_sales_est', 'seller_count', 'search_volume'):
+                    try: mapped[field] = int(float(str(value).replace(',', '').replace('#', '').strip() or 0))
+                    except: mapped[field] = 0
+                elif field in ('weight_grams', 'listing_quality_score', 'demand_score', 'competition_score', 'profit_score', 'opportunity_score', 'total_score'):
+                    try: mapped[field] = float(str(value).strip() or 0)
+                    except: mapped[field] = 0
+                else:
+                    mapped[field] = str(value).strip()
+        if mapped.get('asin'):
+            mapped['data_source'] = 'opportunity_explorer'
+            products.append(mapped)
+
+    if not products:
+        return jsonify({"ok": False, "error": "无有效数据（需要 ASIN 列）"})
+
+    result = import_products_from_list(products, merge_strategy)
+    return jsonify({"ok": True, "result": result})
+
+
+@app.route("/api/import/paste", methods=["POST"])
+def api_import_paste():
+    """粘贴数据导入"""
+    data = request.get_json()
+    if not data or not data.get('raw_text'):
+        return jsonify({"ok": False, "error": "请提供数据"})
+
+    raw = data['raw_text'].strip()
+    lines = raw.split('\n')
+    if len(lines) < 2:
+        return jsonify({"ok": False, "error": "数据不足（至少需要表头和一行数据）"})
+
+    # Auto-detect delimiter
+    first_line = lines[0]
+    tab_count = first_line.count('\t')
+    comma_count = first_line.count(',')
+    semi_count = first_line.count(';')
+    if tab_count >= comma_count and tab_count >= semi_count:
+        delimiter = '\t'
+    elif semi_count > comma_count:
+        delimiter = ';'
+    else:
+        delimiter = ','
+
+    try:
+        import csv
+        import io
+        reader = csv.DictReader(io.StringIO(raw), delimiter=delimiter)
+        columns = reader.fieldnames or []
+        rows = []
+        for row in reader:
+            rows.append({k: (v or '').strip() for k, v in row.items()})
+
+        return jsonify({"ok": True, "columns": columns, "rows": rows, "total": len(rows)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 # ─── 启动 ───────────────────────────────────────────────────

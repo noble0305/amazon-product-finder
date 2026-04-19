@@ -112,6 +112,18 @@ class Scorer:
         else:
             score -= 5
 
+        # 搜索量加成（商机探测器数据）
+        if product.search_volume > 0:
+            print(f"  📊 [增强评分] ASIN={product.asin} 使用 search_volume={product.search_volume}")
+            if product.search_volume >= 50000:
+                score += 15
+            elif product.search_volume >= 20000:
+                score += 12
+            elif product.search_volume >= 5000:
+                score += 8
+            elif product.search_volume >= 1000:
+                score += 5
+
         return max(0, min(100, round(score, 2)))
 
     @staticmethod
@@ -153,6 +165,23 @@ class Scorer:
                 score += 10
             elif sales_review_ratio > 1:
                 score += 5
+
+        # 点击份额加成（商机探测器数据）
+        if product.click_share > 0:
+            print(f"  📊 [增强评分] ASIN={product.asin} 使用 click_share={product.click_share}%")
+            # 低点击份额 = 竞争分散，机会多
+            if product.click_share < 5:
+                score += 15
+            elif product.click_share < 10:
+                score += 10
+            elif product.click_share < 20:
+                score += 5
+            else:
+                score -= 5
+
+        # 转化率加成
+        if product.conversion_rate > 0:
+            print(f"  📊 [增强评分] ASIN={product.asin} 使用 conversion_rate={product.conversion_rate}%")
 
         return max(0, min(100, round(score, 2)))
 

@@ -145,12 +145,20 @@ def init_db():
     cursor.execute(CREATE_PRICE_ALERTS_TABLE)
     cursor.execute(CREATE_BSR_ALERTS_TABLE)
 
-    # 迁移：确保 marketplace 列存在
-    try:
-        cursor.execute("SELECT marketplace FROM products LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE products ADD COLUMN marketplace TEXT DEFAULT 'us'")
-        print("  ✅ 已添加 marketplace 列")
+    # 迁移：确保列存在
+    migrations = [
+        ("SELECT marketplace FROM products LIMIT 1", "ALTER TABLE products ADD COLUMN marketplace TEXT DEFAULT 'us'", "marketplace"),
+        ("SELECT search_volume FROM products LIMIT 1", "ALTER TABLE products ADD COLUMN search_volume INTEGER DEFAULT 0", "search_volume"),
+        ("SELECT click_share FROM products LIMIT 1", "ALTER TABLE products ADD COLUMN click_share REAL DEFAULT 0", "click_share"),
+        ("SELECT conversion_rate FROM products LIMIT 1", "ALTER TABLE products ADD COLUMN conversion_rate REAL DEFAULT 0", "conversion_rate"),
+        ("SELECT data_source FROM products LIMIT 1", "ALTER TABLE products ADD COLUMN data_source TEXT DEFAULT ''", "data_source"),
+    ]
+    for check_sql, alter_sql, col_name in migrations:
+        try:
+            cursor.execute(check_sql)
+        except sqlite3.OperationalError:
+            cursor.execute(alter_sql)
+            print(f"  ✅ 已添加 {col_name} 列")
 
     conn.commit()
     conn.close()
@@ -175,7 +183,7 @@ def save_products(products: list) -> int:
                     date_first_available, demand_score, competition_score, profit_score,
                     opportunity_score, total_score, ai_analysis, referral_fee, fba_fee,
                     storage_fee, estimated_cost, gross_profit, profit_margin, is_on_promotion,
-                    image_url, marketplace
+                    image_url, search_volume, click_share, conversion_rate, data_source, marketplace
                 ) VALUES (
                     :asin, :title, :brand, :category, :price, :rating, :reviews_count,
                     :bsr, :monthly_sales_est, :monthly_revenue_est, :seller_count,
@@ -183,7 +191,7 @@ def save_products(products: list) -> int:
                     :date_first_available, :demand_score, :competition_score, :profit_score,
                     :opportunity_score, :total_score, :ai_analysis, :referral_fee, :fba_fee,
                     :storage_fee, :estimated_cost, :gross_profit, :profit_margin, :is_on_promotion,
-                    :image_url, :marketplace
+                    :image_url, :search_volume, :click_share, :conversion_rate, :data_source, :marketplace
                 )
                 ON CONFLICT(asin) DO UPDATE SET
                     title=excluded.title, brand=excluded.brand, price=excluded.price,
@@ -195,6 +203,8 @@ def save_products(products: list) -> int:
                     profit_score=excluded.profit_score, opportunity_score=excluded.opportunity_score,
                     ai_analysis=excluded.ai_analysis, gross_profit=excluded.gross_profit,
                     profit_margin=excluded.profit_margin, image_url=excluded.image_url,
+                    search_volume=excluded.search_volume, click_share=excluded.click_share,
+                    conversion_rate=excluded.conversion_rate, data_source=excluded.data_source,
                     updated_at=CURRENT_TIMESTAMP
                 """,
                 data,
@@ -534,6 +544,88 @@ def get_favorite_groups() -> list:
     rows = cursor.fetchall()
     conn.close()
     return [row['group_name'] for row in rows]
+
+
+def import_products_from_list(products_data: list, merge_strategy: str = "merge") -> dict:
+    """从字典列表导入产品
+
+    Args:
+        products_data: 产品字典列表，键为字段名
+        merge_strategy: "overwrite"(覆盖) / "merge"(合并非空) / "skip"(跳过已存在)
+
+    Returns:
+        {"imported": N, "updated": N, "skipped": N}
+    """
+    result = {"imported": 0, "updated": 0, "skipped": 0}
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    all_columns = [
+        "asin", "title", "brand", "category", "price", "rating", "reviews_count",
+        "bsr", "monthly_sales_est", "monthly_revenue_est", "seller_count",
+        "buy_box_seller", "weight_grams", "dimensions", "listing_quality_score",
+        "date_first_available", "demand_score", "competition_score", "profit_score",
+        "opportunity_score", "total_score", "ai_analysis", "referral_fee", "fba_fee",
+        "storage_fee", "estimated_cost", "gross_profit", "profit_margin", "is_on_promotion",
+        "image_url", "search_volume", "click_share", "conversion_rate", "data_source", "marketplace"
+    ]
+
+    for data in products_data:
+        asin = data.get("asin", "").strip()
+        if not asin:
+            result["skipped"] += 1
+            continue
+
+        # Check if exists
+        cursor.execute("SELECT 1 FROM products WHERE asin = ?", (asin,))
+        exists = cursor.fetchone() is not None
+
+        if exists and merge_strategy == "skip":
+            result["skipped"] += 1
+            continue
+
+        # Filter to only valid columns
+        filtered = {k: v for k, v in data.items() if k in all_columns and v is not None}
+        filtered["asin"] = asin
+
+        if exists and merge_strategy == "merge":
+            # Only update non-empty fields
+            cursor.execute("SELECT * FROM products WHERE asin = ?", (asin,))
+            existing = dict(cursor.fetchone())
+            for k, v in existing.items():
+                if k not in filtered or filtered.get(k) in (None, "", 0, 0.0):
+                    filtered[k] = v
+            # Build UPDATE
+            set_clause = ", ".join(f"{k} = ?" for k in filtered if k != "asin")
+            values = [filtered[k] for k in filtered if k != "asin"] + [asin]
+            if set_clause:
+                cursor.execute(f"UPDATE products SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE asin = ?", values)
+                result["updated"] += 1
+            else:
+                result["skipped"] += 1
+        elif exists and merge_strategy == "overwrite":
+            set_clause = ", ".join(f"{k} = ?" for k in filtered if k != "asin")
+            values = [filtered[k] for k in filtered if k != "asin"] + [asin]
+            if set_clause:
+                cursor.execute(f"UPDATE products SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE asin = ?", values)
+                result["updated"] += 1
+            else:
+                result["skipped"] += 1
+        else:
+            # Insert new
+            cols = [k for k in filtered if k != "asin"]
+            placeholders = ", ".join(["?"] * (len(cols) + 1))
+            col_names = ", ".join(["asin"] + cols)
+            values = [asin] + [filtered[k] for k in cols]
+            try:
+                cursor.execute(f"INSERT INTO products ({col_names}) VALUES ({placeholders})", values)
+                result["imported"] += 1
+            except sqlite3.IntegrityError:
+                result["skipped"] += 1
+
+    conn.commit()
+    conn.close()
+    return result
 
 
 if __name__ == "__main__":

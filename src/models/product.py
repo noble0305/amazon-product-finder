@@ -47,6 +47,12 @@ class Product:
     gross_profit: float = 0  # 毛利
     profit_margin: float = 0  # 毛利率
 
+    # 商机探测器数据
+    search_volume: int = 0  # 搜索量
+    click_share: float = 0  # 点击份额 (%)
+    conversion_rate: float = 0  # 商品转化率 (%)
+    data_source: str = ""  # 数据来源：rainforest / playwright / opportunity_explorer
+
     # 站点
     marketplace: str = "us"  # 站点标识
 
@@ -101,5 +107,9 @@ class Product:
             "profit_margin": self.profit_margin,
             "is_on_promotion": 1 if self.is_on_promotion else 0,
             "image_url": self.image_url,
+            "search_volume": self.search_volume,
+            "click_share": self.click_share,
+            "conversion_rate": self.conversion_rate,
+            "data_source": self.data_source,
             "marketplace": self.marketplace,
         }
