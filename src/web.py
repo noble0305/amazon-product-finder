@@ -36,58 +36,58 @@ COMMON_HEAD = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#0f0b1a;color:#e2e0e8;min-height:100vh}
-a{color:#a78bfa;text-decoration:none}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#f8f9fb;color:#1e293b;min-height:100vh}
+a{color:#6366f1;text-decoration:none}
 a:hover{text-decoration:underline}
-.header{background:linear-gradient(135deg,#1a1145 0%,#0f0b1a 50%,#1e1245 100%);border-bottom:1px solid rgba(139,92,246,.15);padding:20px 0;position:sticky;top:0;z-index:100;backdrop-filter:blur(20px)}
-.header h1{font-size:22px;font-weight:700;background:linear-gradient(135deg,#c4b5fd,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.header p{opacity:.5;font-size:13px;margin-top:2px;color:#a5a0b8}
+.header{background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#a78bfa 100%);border-bottom:1px solid rgba(99,102,241,.2);padding:20px 0;position:sticky;top:0;z-index:100}
+.header h1{font-size:22px;font-weight:700;color:#fff}
+.header p{opacity:.85;font-size:13px;margin-top:2px;color:#e0e7ff}
 .container{max-width:1280px;margin:0 auto;padding:20px}
-.card{background:rgba(30,22,60,.6);border:1px solid rgba(139,92,246,.12);border-radius:12px;padding:24px;margin-bottom:20px;backdrop-filter:blur(10px)}
-.card h2{font-size:17px;margin-bottom:16px;color:#c4b5fd;font-weight:600}
+.card{background:#fff;border-radius:12px;padding:24px;margin-bottom:20px;border:1px solid #e9ecef;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.card h2{font-size:17px;margin-bottom:16px;color:#4338ca;font-weight:600}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px}
 .stat{background:linear-gradient(135deg,rgba(99,60,200,.15),rgba(139,92,246,.08));border:1px solid rgba(139,92,246,.15);border-radius:10px;padding:18px;text-align:center}
-.stat .num{font-size:30px;font-weight:700;background:linear-gradient(135deg,#c4b5fd,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.stat .label{font-size:12px;color:#8b7fa8;margin-top:4px}
+.stat .num{font-size:30px;font-weight:700;color:#6366f1}
+.stat .label{font-size:12px;color:#64748b;margin-top:4px}
 .form-row{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
 .form-group{display:flex;flex-direction:column}
-.form-group label{font-size:12px;color:#8b7fa8;margin-bottom:4px}
-input,select{padding:9px 14px;background:rgba(15,11,26,.8);border:1px solid rgba(139,92,246,.2);border-radius:8px;color:#e2e0e8;font-size:14px;min-width:200px;font-family:inherit}
-input:focus,select:focus{outline:none;border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.15)}
+.form-group label{font-size:12px;color:#475569;margin-bottom:4px}
+input,select{padding:9px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;color:#1e293b;font-size:14px;min-width:200px;font-family:inherit}
+input:focus,select:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
 .btn{padding:9px 20px;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:.2s;font-family:inherit}
-.btn-primary{background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff}
-.btn-primary:hover{background:linear-gradient(135deg,#8b5cf6,#7c3aed);transform:translateY(-1px)}
-.btn-secondary{background:rgba(139,92,246,.15);color:#c4b5fd;border:1px solid rgba(139,92,246,.25)}
+.btn-primary{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff}
+.btn-primary:hover{background:linear-gradient(135deg,#818cf8,#6366f1);transform:translateY(-1px)}
+.btn-secondary{background:#fff;color:#4f46e5;border:1px solid #e2e8f0}
 .btn-secondary:hover{background:rgba(139,92,246,.25)}
 .btn-danger{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.25)}
 .btn-danger:hover{background:rgba(239,68,68,.25)}
 .btn-sm{padding:5px 12px;font-size:11px}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:rgba(139,92,246,.08);text-align:left;padding:12px;border-bottom:1px solid rgba(139,92,246,.15);color:#a78bfa;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+th{background:#f8fafc;text-align:left;padding:12px;border-bottom:2px solid #e2e8f0;color:#6366f1;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
 td{padding:10px 12px;border-bottom:1px solid rgba(139,92,246,.06)}
-tr:hover{background:rgba(139,92,246,.05)}
+tr:hover{background:#faf5ff}
 .score{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;font-weight:700;font-size:13px;color:#fff}
 .score-high{background:linear-gradient(135deg,#059669,#10b981)}
 .score-mid{background:linear-gradient(135deg,#d97706,#f59e0b)}
 .score-low{background:linear-gradient(135deg,#dc2626,#ef4444)}
 .badge{display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600}
-.badge-green{background:rgba(16,185,129,.15);color:#6ee7b7}
-.badge-yellow{background:rgba(245,158,11,.15);color:#fcd34d}
-.badge-red{background:rgba(239,68,68,.15);color:#fca5a5}
+.badge-green{background:rgba(16,185,129,.15);color:#059669}
+.badge-yellow{background:rgba(245,158,11,.15);color:#d97706}
+.badge-red{background:rgba(239,68,68,.15);color:#dc2626}
 .loading{display:none;text-align:center;padding:40px}
 .loading.show{display:block}
 .spinner{border:3px solid rgba(139,92,246,.15);border-top:3px solid #8b5cf6;border-radius:50%;width:36px;height:36px;animation:spin 1s linear infinite;margin:0 auto 12px}
 @keyframes spin{100%{transform:rotate(360deg)}}
 .actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
-.empty{text-align:center;padding:40px;color:#6b5f82}
-.detail-link{color:#a78bfa;font-weight:500}
-.detail-link:hover{color:#c4b5fd}
-footer{text-align:center;padding:24px;color:#4a4260;font-size:12px}
+.empty{text-align:center;padding:40px;color:#94a3b8}
+.detail-link{color:#6366f1;font-weight:500}
+.detail-link:hover{color:#4f46e5}
+footer{text-align:center;padding:24px;color:#94a3b8;font-size:12px}
 .tab-bar{display:flex;gap:4px;margin-bottom:20px;background:rgba(30,22,60,.4);border-radius:10px;padding:4px;border:1px solid rgba(139,92,246,.1)}
-.tab{padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:.2s;color:#8b7fa8;border:none;background:none;font-family:inherit}
-.tab:hover{color:#c4b5fd;background:rgba(139,92,246,.08)}
-.tab.active{background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff}
+.tab{padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:.2s;color:#475569;border:none;background:none;font-family:inherit}
+.tab:hover{color:#6366f1;background:#f1f5f9}
+.tab.active{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff}
 .tab-panel{display:none}
 .tab-panel.active{display:block}
 .fav-btn{cursor:pointer;font-size:18px;opacity:.4;transition:.2s;border:none;background:none}
@@ -135,12 +135,33 @@ INDEX_HTML = """<!DOCTYPE html>
         <div class="form-group">
           <label>品类扫描</label>
           <select id="category">
-            <option value="Home & Kitchen">Home & Kitchen</option>
-            <option value="Sports & Outdoors">Sports & Outdoors</option>
-            <option value="Pet Supplies">Pet Supplies</option>
-            <option value="Beauty & Personal Care">Beauty & Personal Care</option>
-            <option value="Office Products">Office Products</option>
-            <option value="Tools & Home Improvement">Tools & Home Improvement</option>
+            <option value="Home & Kitchen">🏠 Home & Kitchen</option>
+            <option value="Beauty & Personal Care">💄 Beauty & Personal Care</option>
+            <option value="Health & Household">💊 Health & Household</option>
+            <option value="Sports & Outdoors">⚽ Sports & Outdoors</option>
+            <option value="Toys & Games">🧸 Toys & Games</option>
+            <option value="Electronics">📱 Electronics</option>
+            <option value="Clothing, Shoes & Jewelry">👗 Clothing, Shoes & Jewelry</option>
+            <option value="Automotive">🚗 Automotive</option>
+            <option value="Baby">🍼 Baby</option>
+            <option value="Pet Supplies">🐾 Pet Supplies</option>
+            <option value="Office Products">📎 Office Products</option>
+            <option value="Tools & Home Improvement">🔧 Tools & Home Improvement</option>
+            <option value="Garden & Outdoors">🌿 Garden & Outdoors</option>
+            <option value="Kitchen & Dining">🍳 Kitchen & Dining</option>
+            <option value="Books">📚 Books</option>
+            <option value="Musical Instruments">🎸 Musical Instruments</option>
+            <option value="Arts, Crafts & Sewing">🎨 Arts, Crafts & Sewing</option>
+            <option value="Grocery & Gourmet Food">🍎 Grocery & Gourmet Food</option>
+            <option value="Industrial & Scientific">⚙️ Industrial & Scientific</option>
+            <option value="Software">💻 Software</option>
+            <option value="Video Games">🎮 Video Games</option>
+            <option value="Cell Phones & Accessories">📱 Cell Phones & Accessories</option>
+            <option value="Computers">🖥️ Computers</option>
+            <option value="Appliances">🔌 Appliances</option>
+            <option value="Patio, Lawn & Garden">🌳 Patio, Lawn & Garden</option>
+            <option value="Luggage & Travel Gear">🧳 Luggage & Travel Gear</option>
+            <option value="Handmade">🤲 Handmade</option>
           </select>
         </div>
         <div class="form-group">
@@ -217,12 +238,25 @@ INDEX_HTML = """<!DOCTYPE html>
       <div class="form-row">
         <div class="form-group"><label>品类名称</label>
           <select id="report-category">
-            <option value="Home & Kitchen">Home & Kitchen</option>
-            <option value="Sports & Outdoors">Sports & Outdoors</option>
-            <option value="Pet Supplies">Pet Supplies</option>
-            <option value="Beauty & Personal Care">Beauty & Personal Care</option>
-            <option value="Office Products">Office Products</option>
-            <option value="Tools & Home Improvement">Tools & Home Improvement</option>
+            <option value="Home & Kitchen">🏠 Home & Kitchen</option>
+            <option value="Beauty & Personal Care">💄 Beauty & Personal Care</option>
+            <option value="Health & Household">💊 Health & Household</option>
+            <option value="Sports & Outdoors">⚽ Sports & Outdoors</option>
+            <option value="Toys & Games">🧸 Toys & Games</option>
+            <option value="Electronics">📱 Electronics</option>
+            <option value="Clothing, Shoes & Jewelry">👗 Clothing, Shoes & Jewelry</option>
+            <option value="Automotive">🚗 Automotive</option>
+            <option value="Baby">🍼 Baby</option>
+            <option value="Pet Supplies">🐾 Pet Supplies</option>
+            <option value="Office Products">📎 Office Products</option>
+            <option value="Tools & Home Improvement">🔧 Tools & Home Improvement</option>
+            <option value="Kitchen & Dining">🍳 Kitchen & Dining</option>
+            <option value="Garden & Outdoors">🌿 Garden & Outdoors</option>
+            <option value="Grocery & Gourmet Food">🍎 Grocery & Gourmet Food</option>
+            <option value="Industrial & Scientific">⚙️ Industrial & Scientific</option>
+            <option value="Video Games">🎮 Video Games</option>
+            <option value="Computers">🖥️ Computers</option>
+            <option value="Appliances">🔌 Appliances</option>
           </select>
         </div>
         <button class="btn btn-primary" onclick="genCategoryReport()">📊 生成报告</button>
@@ -848,7 +882,7 @@ def export_page():
     if not products:
         return "暂无数据"
     report = _generate_markdown_report(products)
-    return f"<pre style='padding:24px;font-size:14px;line-height:1.6;white-space:pre-wrap;color:#e2e0e8;background:#0f0b1a'>{report}</pre>"
+    return f"<pre style='padding:24px;font-size:14px;line-height:1.6;white-space:pre-wrap;color:#1e293b;background:#fff'>{report}</pre>"
 
 
 @app.route("/api/export")
