@@ -308,6 +308,28 @@ class RainforestCollector:
 
     BASE_URL = "https://api.rainforestapi.com/request"
 
+    MARKETPLACE_DOMAINS = {
+        "us": "amazon.com",
+        "uk": "amazon.co.uk",
+        "de": "amazon.de",
+        "fr": "amazon.fr",
+        "it": "amazon.it",
+        "es": "amazon.es",
+        "ca": "amazon.ca",
+        "jp": "amazon.co.jp",
+        "au": "amazon.com.au",
+        "br": "amazon.com.br",
+        "mx": "amazon.com.mx",
+        "in": "amazon.in",
+        "sg": "amazon.sg",
+        "ae": "amazon.ae",
+        "sa": "amazon.sa",
+        "nl": "amazon.nl",
+        "se": "amazon.se",
+        "pl": "amazon.pl",
+        "be": "amazon.com.be",
+    }
+
     def __init__(self, api_key: str, marketplace: str = "us"):
         """初始化采集器
 
@@ -317,6 +339,7 @@ class RainforestCollector:
         """
         self.api_key = api_key
         self.marketplace = marketplace
+        self.amazon_domain = self.MARKETPLACE_DOMAINS.get(marketplace, "amazon.com")
         self.is_demo = not api_key or api_key == "YOUR_API_KEY"
 
     # 常用品类节点 ID 映射
@@ -389,7 +412,7 @@ class RainforestCollector:
                 "api_key": self.api_key,
                 "type": "bestsellers",
                 "category_id": cat_id,
-                "amazon_domain": "amazon.com",
+                "amazon_domain": self.amazon_domain,
                 "page": page,
             }
             try:
@@ -439,7 +462,7 @@ class RainforestCollector:
                 "api_key": self.api_key,
                 "type": "search",
                 "search_term": keyword,
-                "amazon_domain": "amazon.com",
+                "amazon_domain": self.amazon_domain,
                 "page": page,
             }
             try:
@@ -586,3 +609,67 @@ class RainforestCollector:
             score += 5
 
         return min(score, 100)
+
+    # Demo 模式用的固定品类列表
+    DEMO_CATEGORIES = [
+        {"id": "automotive", "name": "Automotive"},
+        {"id": "baby-products", "name": "Baby"},
+        {"id": "beauty", "name": "Beauty & Personal Care"},
+        {"id": "strip-books", "name": "Books"},
+        {"id": "fashion", "name": "Clothing, Shoes & Jewelry"},
+        {"id": "electronics", "name": "Electronics"},
+        {"id": "grocery", "name": "Grocery & Gourmet Food"},
+        {"id": "hpc", "name": "Health & Household"},
+        {"id": "garden", "name": "Patio, Lawn & Garden"},
+        {"id": "industrial", "name": "Industrial & Scientific"},
+        {"id": "digital-music", "name": "Digital Music"},
+        {"id": "magazines", "name": "Magazine Subscriptions"},
+        {"id": "movies-tv", "name": "Movies & TV"},
+        {"id": "digital-music-track", "name": "MP3 Downloads"},
+        {"id": "musical-instruments", "name": "Musical Instruments"},
+        {"id": "office-products", "name": "Office Products"},
+        {"id": "lawn-garden", "name": "Patio, Lawn & Garden"},
+        {"id": "pet-supplies", "name": "Pet Supplies"},
+        {"id": "sporting-goods", "name": "Sports & Outdoors"},
+        {"id": "tools", "name": "Tools & Home Improvement"},
+        {"id": "toys-and-games", "name": "Toys & Games"},
+        {"id": "videogames", "name": "Video Games"},
+        {"id": "appliances", "name": "Appliances"},
+        {"id": "smart-home", "name": "Smart Home"},
+        {"id": "arts-crafts", "name": "Arts, Crafts & Sewing"},
+        {"id": "lugagge", "name": "Luggage & Travel Gear"},
+        {"id": "software", "name": "Software"},
+        {"id": "wireless", "name": "Cell Phones & Accessories"},
+        {"id": "pc", "name": "Computers"},
+        {"id": "handmade", "name": "Handmade"},
+        {"id": "home-garden", "name": "Home & Kitchen"},
+        {"id": "kitchen", "name": "Kitchen & Dining"},
+    ]
+
+    def get_categories(self, parent_id: str = None) -> list:
+        """获取品类列表
+
+        Args:
+            parent_id: 父品类 ID（可选）
+
+        Returns:
+            品类列表 [{"id": ..., "name": ...}, ...]
+        """
+        if self.is_demo:
+            return self.DEMO_CATEGORIES
+
+        params = {
+            "api_key": self.api_key,
+            "type": "categories",
+            "amazon_domain": self.amazon_domain,
+        }
+        if parent_id:
+            params["parent_id"] = parent_id
+        try:
+            response = requests.get(self.BASE_URL, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("categories", [])
+        except requests.RequestException as e:
+            print(f"  ⚠️ 获取品类列表失败: {e}")
+            return self.DEMO_CATEGORIES

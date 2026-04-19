@@ -133,35 +133,31 @@ INDEX_HTML = """<!DOCTYPE html>
       <h2>🔍 数据采集</h2>
       <div class="form-row">
         <div class="form-group">
+          <label>站点</label>
+          <select id="marketplace">
+            <option value="us">🇺🇸 美国 amazon.com</option>
+            <option value="uk">🇬🇧 英国 amazon.co.uk</option>
+            <option value="de">🇩🇪 德国 amazon.de</option>
+            <option value="fr">🇫🇷 法国 amazon.fr</option>
+            <option value="jp">🇯🇵 日本 amazon.co.jp</option>
+            <option value="au">🇦🇺 澳洲 amazon.com.au</option>
+            <option value="ca">🇨🇦 加拿大 amazon.ca</option>
+            <option value="it">🇮🇹 意大利 amazon.it</option>
+            <option value="es">🇪🇸 西班牙 amazon.es</option>
+            <option value="in">🇮🇳 印度 amazon.in</option>
+            <option value="br">🇧🇷 巴西 amazon.com.br</option>
+            <option value="mx">🇲🇽 墨西哥 amazon.com.mx</option>
+            <option value="sg">🇸🇬 新加坡 amazon.sg</option>
+            <option value="ae">🇦🇪 阿联酋 amazon.ae</option>
+            <option value="nl">🇳🇱 荷兰 amazon.nl</option>
+            <option value="se">🇸🇪 瑞典 amazon.se</option>
+            <option value="be">🇧🇪 比利时 amazon.com.be</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label>品类扫描</label>
           <select id="category">
-            <option value="Home & Kitchen">🏠 Home & Kitchen</option>
-            <option value="Beauty & Personal Care">💄 Beauty & Personal Care</option>
-            <option value="Health & Household">💊 Health & Household</option>
-            <option value="Sports & Outdoors">⚽ Sports & Outdoors</option>
-            <option value="Toys & Games">🧸 Toys & Games</option>
-            <option value="Electronics">📱 Electronics</option>
-            <option value="Clothing, Shoes & Jewelry">👗 Clothing, Shoes & Jewelry</option>
-            <option value="Automotive">🚗 Automotive</option>
-            <option value="Baby">🍼 Baby</option>
-            <option value="Pet Supplies">🐾 Pet Supplies</option>
-            <option value="Office Products">📎 Office Products</option>
-            <option value="Tools & Home Improvement">🔧 Tools & Home Improvement</option>
-            <option value="Garden & Outdoors">🌿 Garden & Outdoors</option>
-            <option value="Kitchen & Dining">🍳 Kitchen & Dining</option>
-            <option value="Books">📚 Books</option>
-            <option value="Musical Instruments">🎸 Musical Instruments</option>
-            <option value="Arts, Crafts & Sewing">🎨 Arts, Crafts & Sewing</option>
-            <option value="Grocery & Gourmet Food">🍎 Grocery & Gourmet Food</option>
-            <option value="Industrial & Scientific">⚙️ Industrial & Scientific</option>
-            <option value="Software">💻 Software</option>
-            <option value="Video Games">🎮 Video Games</option>
-            <option value="Cell Phones & Accessories">📱 Cell Phones & Accessories</option>
-            <option value="Computers">🖥️ Computers</option>
-            <option value="Appliances">🔌 Appliances</option>
-            <option value="Patio, Lawn & Garden">🌳 Patio, Lawn & Garden</option>
-            <option value="Luggage & Travel Gear">🧳 Luggage & Travel Gear</option>
-            <option value="Handmade">🤲 Handmade</option>
+            <option value="">⏳ 加载中...</option>
           </select>
         </div>
         <div class="form-group">
@@ -197,8 +193,8 @@ INDEX_HTML = """<!DOCTYPE html>
         <tr>
           <td class="checkbox-col"><input type="checkbox" class="asin-cb" value="{{ p.asin }}"></td>
           <td>{{ loop.index }}</td>
-          <td>{% if p.image_url %}<a href="https://www.amazon.com/dp/{{ p.asin }}" target="_blank" rel="noopener"><img src="{{ p.image_url }}" alt="{{ p.title }}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;" onerror="this.src='https://via.placeholder.com/50x50/f1f5f9/94a3b8?text=📦'" /></a>{% else %}<a href="https://www.amazon.com/dp/{{ p.asin }}" target="_blank" rel="noopener" style="display:inline-block;width:50px;height:50px;background:#f1f5f9;border-radius:6px;text-align:center;line-height:50px;font-size:20px;text-decoration:none">📦</a>{% endif %}</td>
-          <td><a href="https://www.amazon.com/dp/{{ p.asin }}" target="_blank" rel="noopener" style="color:#6366f1;font-weight:500"><code>{{ p.asin }}</code></a></td>
+          <td>{% if p.image_url %}<a href="https://www.{{ p.get('amazon_domain', 'amazon.com') }}/dp/{{ p.asin }}" target="_blank" rel="noopener"><img src="{{ p.image_url }}" alt="{{ p.title }}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;" onerror="this.src='https://via.placeholder.com/50x50/f1f5f9/94a3b8?text=📦'" /></a>{% else %}<a href="https://www.{{ p.get('amazon_domain', 'amazon.com') }}/dp/{{ p.asin }}" target="_blank" rel="noopener" style="display:inline-block;width:50px;height:50px;background:#f1f5f9;border-radius:6px;text-align:center;line-height:50px;font-size:20px;text-decoration:none">📦</a>{% endif %}</td>
+          <td><a href="https://www.{{ p.get('amazon_domain', 'amazon.com') }}/dp/{{ p.asin }}" target="_blank" rel="noopener" style="color:#6366f1;font-weight:500"><code>{{ p.asin }}</code></a></td>
           <td><span class="score {{ 'score-high' if p.total_score >= 75 else ('score-mid' if p.total_score >= 60 else 'score-low') }}">{{ p.total_score }}</span></td>
           <td>${{ "%.2f"|format(p.price) }}</td>
           <td>${{ "%.2f"|format(p.gross_profit) }}</td>
@@ -237,27 +233,30 @@ INDEX_HTML = """<!DOCTYPE html>
     <div class="card">
       <h2>📈 AI 品类报告</h2>
       <div class="form-row">
+        <div class="form-group"><label>站点</label>
+          <select id="report-marketplace">
+            <option value="us">🇺🇸 美国 amazon.com</option>
+            <option value="uk">🇬🇧 英国 amazon.co.uk</option>
+            <option value="de">🇩🇪 德国 amazon.de</option>
+            <option value="fr">🇫🇷 法国 amazon.fr</option>
+            <option value="jp">🇯🇵 日本 amazon.co.jp</option>
+            <option value="au">🇦🇺 澳洲 amazon.com.au</option>
+            <option value="ca">🇨🇦 加拿大 amazon.ca</option>
+            <option value="it">🇮🇹 意大利 amazon.it</option>
+            <option value="es">🇪🇸 西班牙 amazon.es</option>
+            <option value="in">🇮🇳 印度 amazon.in</option>
+            <option value="br">🇧🇷 巴西 amazon.com.br</option>
+            <option value="mx">🇲🇽 墨西哥 amazon.com.mx</option>
+            <option value="sg">🇸🇬 新加坡 amazon.sg</option>
+            <option value="ae">🇦🇪 阿联酋 amazon.ae</option>
+            <option value="nl">🇳🇱 荷兰 amazon.nl</option>
+            <option value="se">🇸🇪 瑞典 amazon.se</option>
+            <option value="be">🇧🇪 比利时 amazon.com.be</option>
+          </select>
+        </div>
         <div class="form-group"><label>品类名称</label>
           <select id="report-category">
-            <option value="Home & Kitchen">🏠 Home & Kitchen</option>
-            <option value="Beauty & Personal Care">💄 Beauty & Personal Care</option>
-            <option value="Health & Household">💊 Health & Household</option>
-            <option value="Sports & Outdoors">⚽ Sports & Outdoors</option>
-            <option value="Toys & Games">🧸 Toys & Games</option>
-            <option value="Electronics">📱 Electronics</option>
-            <option value="Clothing, Shoes & Jewelry">👗 Clothing, Shoes & Jewelry</option>
-            <option value="Automotive">🚗 Automotive</option>
-            <option value="Baby">🍼 Baby</option>
-            <option value="Pet Supplies">🐾 Pet Supplies</option>
-            <option value="Office Products">📎 Office Products</option>
-            <option value="Tools & Home Improvement">🔧 Tools & Home Improvement</option>
-            <option value="Kitchen & Dining">🍳 Kitchen & Dining</option>
-            <option value="Garden & Outdoors">🌿 Garden & Outdoors</option>
-            <option value="Grocery & Gourmet Food">🍎 Grocery & Gourmet Food</option>
-            <option value="Industrial & Scientific">⚙️ Industrial & Scientific</option>
-            <option value="Video Games">🎮 Video Games</option>
-            <option value="Computers">🖥️ Computers</option>
-            <option value="Appliances">🔌 Appliances</option>
+            <option value="">⏳ 加载中...</option>
           </select>
         </div>
         <button class="btn btn-primary" onclick="genCategoryReport()">📊 生成报告</button>
@@ -272,6 +271,81 @@ INDEX_HTML = """<!DOCTYPE html>
 <script>
 const favAsins = new Set({{ fav_asins | tojson }});
 
+const MARKETPLACE_DOMAINS = {
+  "us":"amazon.com","uk":"amazon.co.uk","de":"amazon.de","fr":"amazon.fr",
+  "it":"amazon.it","es":"amazon.es","ca":"amazon.ca","jp":"amazon.co.jp",
+  "au":"amazon.com.au","br":"amazon.com.br","mx":"amazon.com.mx",
+  "in":"amazon.in","sg":"amazon.sg","ae":"amazon.ae","sa":"amazon.sa",
+  "nl":"amazon.nl","se":"amazon.se","pl":"amazon.pl","be":"amazon.com.be"
+};
+
+const STATIC_CATEGORIES = [
+  {id:"home-garden",name:"Home & Kitchen"},{id:"beauty",name:"Beauty & Personal Care"},
+  {id:"hpc",name:"Health & Household"},{id:"sporting-goods",name:"Sports & Outdoors"},
+  {id:"toys-and-games",name:"Toys & Games"},{id:"electronics",name:"Electronics"},
+  {id:"fashion",name:"Clothing, Shoes & Jewelry"},{id:"automotive",name:"Automotive"},
+  {id:"baby-products",name:"Baby"},{id:"pet-supplies",name:"Pet Supplies"},
+  {id:"office-products",name:"Office Products"},{id:"tools",name:"Tools & Home Improvement"},
+  {id:"garden",name:"Garden & Outdoors"},{id:"kitchen",name:"Kitchen & Dining"},
+  {id:"strip-books",name:"Books"},{id:"musical-instruments",name:"Musical Instruments"},
+  {id:"arts-crafts",name:"Arts, Crafts & Sewing"},{id:"grocery",name:"Grocery & Gourmet Food"},
+  {id:"industrial",name:"Industrial & Scientific"},{id:"software",name:"Software"},
+  {id:"videogames",name:"Video Games"},{id:"wireless",name:"Cell Phones & Accessories"},
+  {id:"pc",name:"Computers"},{id:"appliances",name:"Appliances"},
+  {id:"lawn-garden",name:"Patio, Lawn & Garden"},{id:"lugagge",name:"Luggage & Travel Gear"},
+  {id:"handmade",name:"Handmade"}
+];
+
+function getDomain() {
+  const mp = document.getElementById('marketplace').value;
+  return MARKETPLACE_DOMAINS[mp] || 'amazon.com';
+}
+
+async function loadCategories(selectId, mp) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">⏳ 加载中...</option>';
+  try {
+    const resp = await fetch('/api/categories?marketplace=' + (mp || document.getElementById('marketplace').value));
+    const data = await resp.json();
+    if (data.ok && data.categories.length > 0) {
+      sel.innerHTML = '';
+      data.categories.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+    } else {
+      fillStaticCategories(sel);
+    }
+  } catch(e) {
+    fillStaticCategories(sel);
+  }
+}
+
+function fillStaticCategories(sel) {
+  sel.innerHTML = '';
+  STATIC_CATEGORIES.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.name;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+}
+
+// 页面加载时加载品类
+loadCategories('category');
+loadCategories('report-category');
+
+// 站点切换时重新加载品类
+document.getElementById('marketplace').addEventListener('change', function() {
+  loadCategories('category', this.value);
+});
+document.getElementById('report-marketplace').addEventListener('change', function() {
+  loadCategories('report-category', this.value);
+});
+
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -283,9 +357,10 @@ function switchTab(name) {
 async function doScan() {
   const cat = document.getElementById('category').value;
   const pages = document.getElementById('pages').value;
+  const mp = document.getElementById('marketplace').value;
   showLoading('正在扫描 ' + cat + ' ...');
   try {
-    const resp = await fetch('/api/scan?category=' + encodeURIComponent(cat) + '&pages=' + pages);
+    const resp = await fetch('/api/scan?category=' + encodeURIComponent(cat) + '&pages=' + pages + '&marketplace=' + mp);
     const data = await resp.json();
     if (data.ok) window.location.reload();
     else { alert('扫描失败: ' + data.error); hideLoading(); }
@@ -295,9 +370,10 @@ async function doScan() {
 async function doSearch() {
   const kw = document.getElementById('keyword').value.trim();
   if (!kw) { alert('请输入关键词'); return; }
+  const mp = document.getElementById('marketplace').value;
   showLoading('正在搜索 "' + kw + '" ...');
   try {
-    const resp = await fetch('/api/search?keyword=' + encodeURIComponent(kw) + '&pages=1');
+    const resp = await fetch('/api/search?keyword=' + encodeURIComponent(kw) + '&pages=1&marketplace=' + mp);
     const data = await resp.json();
     if (data.ok) window.location.reload();
     else { alert('搜索失败: ' + data.error); hideLoading(); }
@@ -364,12 +440,13 @@ async function removeFav(asin) {
 
 async function genCategoryReport() {
   const cat = document.getElementById('report-category').value;
+  const mp = document.getElementById('report-marketplace').value;
   const el = document.getElementById('category-report-content');
   el.innerHTML = '<div class="loading show"><div class="spinner"></div><p>正在生成 ' + cat + ' 品类报告...</p></div>';
   try {
     const resp = await fetch('/api/report/category', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({category: cat})
+      body: JSON.stringify({category: cat, marketplace: mp})
     });
     const data = await resp.json();
     if (data.ok) el.innerHTML = '<div style="background:rgba(30,22,60,.4);border-radius:8px;padding:20px;white-space:pre-wrap;line-height:1.8;font-size:14px">' + data.report + '</div>';
@@ -669,7 +746,13 @@ def index():
         margins = [p.get("profit_margin", 0) for p in products if p.get("profit_margin")]
         stats["avg_margin"] = f"{round(sum(margins) / len(margins), 1)}%" if margins else "0%"
     fav_asins = _get_fav_asins()
-    return render_template_string(INDEX_HTML, products=products, stats=stats, fav_asins=fav_asins)
+    marketplace = request.args.get("marketplace", "us")
+    # 为产品添加 amazon_domain 用于链接生成
+    from src.collectors.rainforest import RainforestCollector
+    for p in products:
+        mp = p.get('marketplace', 'us')
+        p['amazon_domain'] = RainforestCollector.MARKETPLACE_DOMAINS.get(mp, 'amazon.com')
+    return render_template_string(INDEX_HTML, products=products, stats=stats, fav_asins=fav_asins, marketplace=marketplace)
 
 
 @app.route("/detail/<asin>")
@@ -696,14 +779,18 @@ def api_scan():
     config = load_config()
     category = request.args.get("category", "Home & Kitchen")
     pages = int(request.args.get("pages", 2))
+    marketplace = request.args.get("marketplace", config.get("rainforest", {}).get("marketplace", "us"))
     try:
         rf = config.get("rainforest", {})
         collector = RainforestCollector(
-            api_key=rf.get("api_key", ""), marketplace=rf.get("marketplace", "us")
+            api_key=rf.get("api_key", ""), marketplace=marketplace
         )
         products = collector.get_best_sellers(category, pages)
         if not products:
             return jsonify({"ok": False, "error": "未获取到产品"})
+        # Set marketplace on each product
+        for p in products:
+            p.marketplace = marketplace
         _run_pipeline(products, config, "bestsellers", category, pages)
         return jsonify({"ok": True, "count": len(products)})
     except Exception as e:
@@ -715,20 +802,38 @@ def api_search():
     config = load_config()
     keyword = request.args.get("keyword", "")
     pages = int(request.args.get("pages", 1))
+    marketplace = request.args.get("marketplace", config.get("rainforest", {}).get("marketplace", "us"))
     if not keyword:
         return jsonify({"ok": False, "error": "请输入关键词"})
     try:
         rf = config.get("rainforest", {})
         collector = RainforestCollector(
-            api_key=rf.get("api_key", ""), marketplace=rf.get("marketplace", "us")
+            api_key=rf.get("api_key", ""), marketplace=marketplace
         )
         products = collector.search_products(keyword, pages)
         if not products:
             return jsonify({"ok": False, "error": "未搜索到产品"})
+        for p in products:
+            p.marketplace = marketplace
         _run_pipeline(products, config, "search", keyword, pages)
         return jsonify({"ok": True, "count": len(products)})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/categories")
+def api_categories():
+    config = load_config()
+    marketplace = request.args.get("marketplace", config.get("rainforest", {}).get("marketplace", "us"))
+    rf = config.get("rainforest", {})
+    collector = RainforestCollector(
+        api_key=rf.get("api_key", ""), marketplace=marketplace
+    )
+    try:
+        categories = collector.get_categories()
+        return jsonify({"ok": True, "categories": categories})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e), "categories": []})
 
 
 @app.route("/api/favorite/add", methods=["POST"])
@@ -770,6 +875,7 @@ def api_trend(asin):
 def api_category_report():
     data = request.get_json() or request.form
     category = data.get("category", "")
+    marketplace = data.get("marketplace", "")
     if not category:
         return jsonify({"ok": False, "error": "请提供品类名称"})
 
@@ -777,10 +883,16 @@ def api_category_report():
     # 获取该品类的产品数据
     conn = __import__('scripts.init_db', fromlist=['get_connection']).get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT * FROM products WHERE category LIKE ? ORDER BY total_score DESC LIMIT 20",
-        (f"%{category}%",),
-    )
+    if marketplace:
+        cursor.execute(
+            "SELECT * FROM products WHERE category LIKE ? AND marketplace = ? ORDER BY total_score DESC LIMIT 20",
+            (f"%{category}%", marketplace),
+        )
+    else:
+        cursor.execute(
+            "SELECT * FROM products WHERE category LIKE ? ORDER BY total_score DESC LIMIT 20",
+            (f"%{category}%",),
+        )
     rows = cursor.fetchall()
     conn.close()
     products = [dict(r) for r in rows]

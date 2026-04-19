@@ -47,6 +47,9 @@ class Product:
     gross_profit: float = 0  # 毛利
     profit_margin: float = 0  # 毛利率
 
+    # 站点
+    marketplace: str = "us"  # 站点标识
+
     # 价格历史
     price_history: list = field(default_factory=list)  # 近30天价格列表
     bsr_history: list = field(default_factory=list)  # 近30天 BSR 列表
@@ -98,4 +101,5 @@ class Product:
             "profit_margin": self.profit_margin,
             "is_on_promotion": 1 if self.is_on_promotion else 0,
             "image_url": self.image_url,
+            "marketplace": self.marketplace,
         }

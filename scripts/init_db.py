@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS products (
     gross_profit REAL DEFAULT 0,
     profit_margin REAL DEFAULT 0,
     is_on_promotion INTEGER DEFAULT 0,
+    image_url TEXT DEFAULT '',
+    marketplace TEXT DEFAULT 'us',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -114,6 +116,13 @@ def init_db():
     cursor.execute(CREATE_FAVORITES_TABLE)
     cursor.execute(CREATE_PRICE_HISTORY_TABLE)
 
+    # 迁移：确保 marketplace 列存在
+    try:
+        cursor.execute("SELECT marketplace FROM products LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE products ADD COLUMN marketplace TEXT DEFAULT 'us'")
+        print("  ✅ 已添加 marketplace 列")
+
     conn.commit()
     conn.close()
     print(f"✅ 数据库初始化完成: {get_db_path()}")
@@ -137,7 +146,7 @@ def save_products(products: list) -> int:
                     date_first_available, demand_score, competition_score, profit_score,
                     opportunity_score, total_score, ai_analysis, referral_fee, fba_fee,
                     storage_fee, estimated_cost, gross_profit, profit_margin, is_on_promotion,
-                    image_url
+                    image_url, marketplace
                 ) VALUES (
                     :asin, :title, :brand, :category, :price, :rating, :reviews_count,
                     :bsr, :monthly_sales_est, :monthly_revenue_est, :seller_count,
@@ -145,7 +154,7 @@ def save_products(products: list) -> int:
                     :date_first_available, :demand_score, :competition_score, :profit_score,
                     :opportunity_score, :total_score, :ai_analysis, :referral_fee, :fba_fee,
                     :storage_fee, :estimated_cost, :gross_profit, :profit_margin, :is_on_promotion,
-                    :image_url
+                    :image_url, :marketplace
                 )
                 ON CONFLICT(asin) DO UPDATE SET
                     title=excluded.title, brand=excluded.brand, price=excluded.price,
@@ -200,11 +209,14 @@ def save_price_snapshot(products: list) -> None:
     conn.close()
 
 
-def get_top_products(limit: int = 20) -> list:
+def get_top_products(limit: int = 20, marketplace: str = None) -> list:
     """获取评分最高的产品"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM products ORDER BY total_score DESC LIMIT ?", (limit,))
+    if marketplace:
+        cursor.execute("SELECT * FROM products WHERE marketplace = ? ORDER BY total_score DESC LIMIT ?", (marketplace, limit))
+    else:
+        cursor.execute("SELECT * FROM products ORDER BY total_score DESC LIMIT ?", (limit,))
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
