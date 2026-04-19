@@ -161,6 +161,13 @@ INDEX_HTML = """<!DOCTYPE html>
           </select>
         </div>
         <div class="form-group">
+          <label>数据源</label>
+          <select id="datasource">
+            <option value="rainforest">🌊 Rainforest API</option>
+            <option value="playwright">🕷️ Playwright 直爬</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label>页数</label>
           <input type="number" id="pages" value="2" min="1" max="5" style="min-width:80px">
         </div>
@@ -168,6 +175,13 @@ INDEX_HTML = """<!DOCTYPE html>
       </div>
       <div style="margin-top:12px;display:flex;gap:12px;align-items:end;flex-wrap:wrap">
         <div class="form-group"><label>关键词搜索</label><input type="text" id="keyword" placeholder="如 garlic press"></div>
+        <div class="form-group">
+          <label>数据源</label>
+          <select id="datasource-search">
+            <option value="rainforest">🌊 Rainforest API</option>
+            <option value="playwright">🕷️ Playwright 直爬</option>
+          </select>
+        </div>
         <button class="btn btn-secondary" onclick="doSearch()">搜索</button>
       </div>
     </div>
@@ -257,6 +271,13 @@ INDEX_HTML = """<!DOCTYPE html>
         <div class="form-group"><label>品类名称</label>
           <select id="report-category">
             <option value="">⏳ 加载中...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>数据源</label>
+          <select id="report-datasource">
+            <option value="rainforest">🌊 Rainforest API</option>
+            <option value="playwright">🕷️ Playwright 直爬</option>
           </select>
         </div>
         <button class="btn btn-primary" onclick="genCategoryReport()">📊 生成报告</button>
@@ -358,9 +379,10 @@ async function doScan() {
   const cat = document.getElementById('category').value;
   const pages = document.getElementById('pages').value;
   const mp = document.getElementById('marketplace').value;
-  showLoading('正在扫描 ' + cat + ' ...');
+  const ds = document.getElementById('datasource').value;
+  showLoading('正在扫描 ' + cat + ' (' + (ds === 'playwright' ? 'Playwright' : 'Rainforest') + ') ...');
   try {
-    const resp = await fetch('/api/scan?category=' + encodeURIComponent(cat) + '&pages=' + pages + '&marketplace=' + mp);
+    const resp = await fetch('/api/scan?category=' + encodeURIComponent(cat) + '&pages=' + pages + '&marketplace=' + mp + '&datasource=' + ds);
     const data = await resp.json();
     if (data.ok) window.location.reload();
     else { alert('扫描失败: ' + data.error); hideLoading(); }
@@ -371,9 +393,10 @@ async function doSearch() {
   const kw = document.getElementById('keyword').value.trim();
   if (!kw) { alert('请输入关键词'); return; }
   const mp = document.getElementById('marketplace').value;
-  showLoading('正在搜索 "' + kw + '" ...');
+  const ds = document.getElementById('datasource-search').value;
+  showLoading('正在搜索 "' + kw + '" (' + (ds === 'playwright' ? 'Playwright' : 'Rainforest') + ') ...');
   try {
-    const resp = await fetch('/api/search?keyword=' + encodeURIComponent(kw) + '&pages=1&marketplace=' + mp);
+    const resp = await fetch('/api/search?keyword=' + encodeURIComponent(kw) + '&pages=1&marketplace=' + mp + '&datasource=' + ds);
     const data = await resp.json();
     if (data.ok) window.location.reload();
     else { alert('搜索失败: ' + data.error); hideLoading(); }
@@ -441,6 +464,7 @@ async function removeFav(asin) {
 async function genCategoryReport() {
   const cat = document.getElementById('report-category').value;
   const mp = document.getElementById('report-marketplace').value;
+  const ds = document.getElementById('report-datasource').value;
   const el = document.getElementById('category-report-content');
   el.innerHTML = '<div class="loading show"><div class="spinner"></div><p>正在生成 ' + cat + ' 品类报告...</p></div>';
   try {
@@ -781,14 +805,23 @@ def api_scan():
     pages = int(request.args.get("pages", 2))
     marketplace = request.args.get("marketplace", config.get("rainforest", {}).get("marketplace", "us"))
     try:
-        rf = config.get("rainforest", {})
-        collector = RainforestCollector(
-            api_key=rf.get("api_key", ""), marketplace=marketplace
-        )
-        products = collector.get_best_sellers(category, pages)
+        datasource = request.args.get("datasource", "rainforest")
+        if datasource == "playwright":
+            from src.collectors.playwright_scraper import sync_get_best_sellers
+            products = sync_get_best_sellers(marketplace, category, pages)
+        else:
+            rf = config.get("rainforest", {})
+            try:
+                collector = RainforestCollector(
+                    api_key=rf.get("api_key", ""), marketplace=marketplace
+                )
+                products = collector.get_best_sellers(category, pages)
+            except Exception as e:
+                print(f"Rainforest 失败，自动降级到 Playwright: {e}")
+                from src.collectors.playwright_scraper import sync_get_best_sellers
+                products = sync_get_best_sellers(marketplace, category, pages)
         if not products:
             return jsonify({"ok": False, "error": "未获取到产品"})
-        # Set marketplace on each product
         for p in products:
             p.marketplace = marketplace
         _run_pipeline(products, config, "bestsellers", category, pages)
@@ -806,11 +839,21 @@ def api_search():
     if not keyword:
         return jsonify({"ok": False, "error": "请输入关键词"})
     try:
-        rf = config.get("rainforest", {})
-        collector = RainforestCollector(
-            api_key=rf.get("api_key", ""), marketplace=marketplace
-        )
-        products = collector.search_products(keyword, pages)
+        datasource = request.args.get("datasource", "rainforest")
+        if datasource == "playwright":
+            from src.collectors.playwright_scraper import sync_search
+            products = sync_search(marketplace, keyword, pages)
+        else:
+            rf = config.get("rainforest", {})
+            try:
+                collector = RainforestCollector(
+                    api_key=rf.get("api_key", ""), marketplace=marketplace
+                )
+                products = collector.search_products(keyword, pages)
+            except Exception as e:
+                print(f"Rainforest 失败，自动降级到 Playwright: {e}")
+                from src.collectors.playwright_scraper import sync_search
+                products = sync_search(marketplace, keyword, pages)
         if not products:
             return jsonify({"ok": False, "error": "未搜索到产品"})
         for p in products:
@@ -825,6 +868,14 @@ def api_search():
 def api_categories():
     config = load_config()
     marketplace = request.args.get("marketplace", config.get("rainforest", {}).get("marketplace", "us"))
+    datasource = request.args.get("datasource", "rainforest")
+    if datasource == "playwright":
+        try:
+            from src.collectors.playwright_scraper import sync_get_categories
+            cats = sync_get_categories(marketplace)
+            return jsonify({"ok": True, "categories": cats})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e), "categories": []})
     rf = config.get("rainforest", {})
     collector = RainforestCollector(
         api_key=rf.get("api_key", ""), marketplace=marketplace
