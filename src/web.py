@@ -189,7 +189,7 @@ INDEX_HTML = """<!DOCTYPE html>
         <thead>
           <tr>
             <th class="checkbox-col"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
-            <th>#</th><th>ASIN</th><th>总分</th><th>售价</th><th>毛利</th><th>毛利率</th><th>月销量</th><th>BSR</th><th>评分</th><th>收藏</th><th>操作</th>
+            <th>#</th><th>图片</th><th>ASIN</th><th>总分</th><th>售价</th><th>毛利</th><th>毛利率</th><th>月销量</th><th>BSR</th><th>评分</th><th>收藏</th><th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -197,7 +197,8 @@ INDEX_HTML = """<!DOCTYPE html>
         <tr>
           <td class="checkbox-col"><input type="checkbox" class="asin-cb" value="{{ p.asin }}"></td>
           <td>{{ loop.index }}</td>
-          <td><code>{{ p.asin }}</code></td>
+          <td>{% if p.image_url %}<a href="https://www.amazon.com/dp/{{ p.asin }}" target="_blank" rel="noopener"><img src="{{ p.image_url }}" alt="{{ p.title }}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;" onerror="this.src='https://via.placeholder.com/50x50/f1f5f9/94a3b8?text=📦'" /></a>{% else %}<a href="https://www.amazon.com/dp/{{ p.asin }}" target="_blank" rel="noopener" style="display:inline-block;width:50px;height:50px;background:#f1f5f9;border-radius:6px;text-align:center;line-height:50px;font-size:20px;text-decoration:none">📦</a>{% endif %}</td>
+          <td><a href="https://www.amazon.com/dp/{{ p.asin }}" target="_blank" rel="noopener" style="color:#6366f1;font-weight:500"><code>{{ p.asin }}</code></a></td>
           <td><span class="score {{ 'score-high' if p.total_score >= 75 else ('score-mid' if p.total_score >= 60 else 'score-low') }}">{{ p.total_score }}</span></td>
           <td>${{ "%.2f"|format(p.price) }}</td>
           <td>${{ "%.2f"|format(p.gross_profit) }}</td>

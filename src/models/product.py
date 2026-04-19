@@ -51,6 +51,7 @@ class Product:
     price_history: list = field(default_factory=list)  # 近30天价格列表
     bsr_history: list = field(default_factory=list)  # 近30天 BSR 列表
     is_on_promotion: bool = False  # 是否在促销
+    image_url: str = ""  # 商品图片 URL
 
     @property
     def volume_cm3(self) -> float:
@@ -96,4 +97,5 @@ class Product:
             "gross_profit": self.gross_profit,
             "profit_margin": self.profit_margin,
             "is_on_promotion": 1 if self.is_on_promotion else 0,
+            "image_url": self.image_url,
         }

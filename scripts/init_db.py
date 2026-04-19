@@ -136,14 +136,16 @@ def save_products(products: list) -> int:
                     buy_box_seller, weight_grams, dimensions, listing_quality_score,
                     date_first_available, demand_score, competition_score, profit_score,
                     opportunity_score, total_score, ai_analysis, referral_fee, fba_fee,
-                    storage_fee, estimated_cost, gross_profit, profit_margin, is_on_promotion
+                    storage_fee, estimated_cost, gross_profit, profit_margin, is_on_promotion,
+                    image_url
                 ) VALUES (
                     :asin, :title, :brand, :category, :price, :rating, :reviews_count,
                     :bsr, :monthly_sales_est, :monthly_revenue_est, :seller_count,
                     :buy_box_seller, :weight_grams, :dimensions, :listing_quality_score,
                     :date_first_available, :demand_score, :competition_score, :profit_score,
                     :opportunity_score, :total_score, :ai_analysis, :referral_fee, :fba_fee,
-                    :storage_fee, :estimated_cost, :gross_profit, :profit_margin, :is_on_promotion
+                    :storage_fee, :estimated_cost, :gross_profit, :profit_margin, :is_on_promotion,
+                    :image_url
                 )
                 ON CONFLICT(asin) DO UPDATE SET
                     title=excluded.title, brand=excluded.brand, price=excluded.price,
@@ -154,7 +156,8 @@ def save_products(products: list) -> int:
                     demand_score=excluded.demand_score, competition_score=excluded.competition_score,
                     profit_score=excluded.profit_score, opportunity_score=excluded.opportunity_score,
                     ai_analysis=excluded.ai_analysis, gross_profit=excluded.gross_profit,
-                    profit_margin=excluded.profit_margin, updated_at=CURRENT_TIMESTAMP
+                    profit_margin=excluded.profit_margin, image_url=excluded.image_url,
+                    updated_at=CURRENT_TIMESTAMP
                 """,
                 data,
             )
