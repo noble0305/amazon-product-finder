@@ -39,3 +39,6 @@ coverage.xml
 
 # Test artifacts
 tests/screenshot.png
+
+# Worktrees
+.worktrees/
