@@ -527,6 +527,7 @@ async function doScan() {
   const lt = document.getElementById('scan_type').value;
   const typeNames = {bestsellers:'Best Sellers 畅销榜', new_releases:'New Releases 新品榜', movers_shakers:'Movers & Shakers 飙升榜'};
   showLoading('正在扫描 ' + typeNames[lt] + ' — ' + cat + ' (' + (ds === 'playwright' ? 'Playwright' : 'Rainforest') + ') ...');
+  setTimeout(function(){ var lt2 = document.getElementById('loadingText'); if(lt2 && lt2.textContent.includes('正在扫描')) lt2.textContent = '正在采集数据并评分分析，请耐心等待（通常需要 15-30 秒）...'; }, 3000);
   try {
     const resp = await fetch('/api/scan?category=' + encodeURIComponent(cat) + '&pages=' + pages + '&marketplace=' + mp + '&datasource=' + ds + '&list_type=' + lt);
     const data = await resp.json();
@@ -544,6 +545,7 @@ async function doSearch() {
   const mp = document.getElementById('marketplace').value;
   const ds = document.getElementById('datasource-search').value;
   showLoading('正在搜索 "' + kw + '" (' + (ds === 'playwright' ? 'Playwright' : 'Rainforest') + ') ...');
+  setTimeout(function(){ var lt2 = document.getElementById('loadingText'); if(lt2 && lt2.textContent.includes('正在搜索')) lt2.textContent = '正在采集数据并评分分析，请耐心等待（通常需要 10-20 秒）...'; }, 3000);
   try {
     const resp = await fetch('/api/search?keyword=' + encodeURIComponent(kw) + '&pages=1&marketplace=' + mp + '&datasource=' + ds);
     const data = await resp.json();
