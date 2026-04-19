@@ -605,8 +605,8 @@ function renderScanResults(products, scanTime, source, title) {
     h += '<td>' + (p.monthly_sales_est || 0) + '</td>';
     h += '<td>#' + (p.bsr || '-') + '</td>';
     h += '<td>' + (p.rating || 0) + '/5.0</td>';
-    h += '<td><button class="fav-btn ' + favClass + '" onclick="toggleFav(\'' + p.asin + '\',this)">⭐</button></td>';
-    h += '<td style="white-space:nowrap"><button class="btn btn-sm btn-secondary" style="padding:2px 6px;font-size:14px" onclick="quickAlert(\'' + p.asin + '\',\'' + (p.price || 0).toFixed(2) + '\')" title="快速预警">🔔</button> <a class="detail-link" href="/detail/' + p.asin + '">详情 →</a></td>';
+    h += '<td><button class="fav-btn ' + favClass + '" data-asin="' + p.asin + '" onclick="toggleFav(this.dataset.asin,this)">⭐</button></td>';
+    h += '<td style="white-space:nowrap"><button class="btn btn-sm btn-secondary" style="padding:2px 6px;font-size:14px" data-asin="' + p.asin + '" data-price="' + (p.price || 0).toFixed(2) + '" onclick="quickAlert(this.dataset.asin,this.dataset.price)" title="快速预警">🔔</button> <a class="detail-link" href="/detail/' + p.asin + '">详情 →</a></td>';
     h += '</tr>';
   }
   h += '</tbody></table></div>';
