@@ -530,7 +530,7 @@ async function doScan() {
   try {
     const resp = await fetch('/api/scan?category=' + encodeURIComponent(cat) + '&pages=' + pages + '&marketplace=' + mp + '&datasource=' + ds + '&list_type=' + lt);
     const data = await resp.json();
-    if (data.ok) { hideLoading(); alert('扫描完成！获取 ' + data.count + ' 个产品'); setTimeout(() => window.location.reload(), 500); }
+    if (data.ok) { hideLoading(); renderScanResults(data.products, data.scan_time, data.source, typeNames[lt] + ' — ' + cat); }
     else { alert('扫描失败: ' + data.error); hideLoading(); }
   } catch(e) { alert('请求失败: ' + e.message); hideLoading(); }
   finally { if (btn) btn.disabled = false; }
@@ -547,10 +547,71 @@ async function doSearch() {
   try {
     const resp = await fetch('/api/search?keyword=' + encodeURIComponent(kw) + '&pages=1&marketplace=' + mp + '&datasource=' + ds);
     const data = await resp.json();
-    if (data.ok) { hideLoading(); alert('搜索完成！获取 ' + data.count + ' 个产品'); setTimeout(() => window.location.reload(), 500); }
+    if (data.ok) { hideLoading(); renderScanResults(data.products, data.scan_time, data.source, '搜索 "' + kw + '"'); }
     else { alert('搜索失败: ' + data.error); hideLoading(); }
   } catch(e) { alert('请求失败: ' + e.message); hideLoading(); }
   finally { if (searchBtn) searchBtn.disabled = false; }
+}
+
+function renderScanResults(products, scanTime, source, title) {
+  var el = document.getElementById('results');
+  var favAsins = [{% for a in fav_asins %}'{{ a }}',{% endfor %}];
+  var mp = document.getElementById('marketplace').value;
+  var domains = {{ RainforestCollector.MARKETPLACE_DOMAINS | tojson }};
+  var domain = domains[mp] || 'amazon.com';
+  var sourceLabels = {rainforest:'Rainforest', playwright:'Playwright', demo:'Demo'};
+  var sourceColors = {rainforest:'badge-green', playwright:'badge-yellow', demo:'badge-red'};
+  var sourceLabel = sourceLabels[source] || source;
+  var sourceColor = sourceColors[source] || 'badge-green';
+
+  var h = '<h2>🔍 ' + (title || '本次扫描结果') + ' <span style="font-size:12px;color:#6b5f82">（' + products.length + ' 个产品）</span>';
+  h += ' <button class="btn btn-secondary btn-sm" onclick="window.location.reload()" style="margin-left:8px">← 返回排行榜</button></h2>';
+  h += '<p style="font-size:12px;color:#64748b;margin-bottom:12px">采集时间: ' + scanTime + ' · 数据来源: <span class="badge ' + sourceColor + '">' + sourceLabel + '</span></p>';
+
+  if (!products || !products.length) {
+    el.innerHTML = h + '<div class="empty">未获取到产品</div>';
+    el.style.display = 'block';
+    return;
+  }
+
+  h += '<div style="overflow-x:auto"><table>';
+  h += '<thead><tr><th class="checkbox-col"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>';
+  h += '<th>#</th><th>图片</th><th>ASIN</th><th>来源</th><th>总分</th><th>售价</th><th>毛利</th><th>毛利率</th><th>月销量</th><th>BSR</th><th>评分</th><th>收藏</th><th>操作</th></tr></thead><tbody>';
+
+  for (var i = 0; i < products.length; i++) {
+    var p = products[i];
+    var imgHtml = p.image_url
+      ? '<a href="https://www.' + domain + '/dp/' + p.asin + '" target="_blank"><img src="' + p.image_url + '" alt="" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;" onerror="this.src=\\'https://via.placeholder.com/50x50/f1f5f9/94a3b8?text=📦\\'"></a>'
+      : '<a href="https://www.' + domain + '/dp/' + p.asin + '" target="_blank" style="display:inline-block;width:50px;height:50px;background:#f1f5f9;border-radius:6px;text-align:center;line-height:50px;font-size:20px;text-decoration:none">📦</a>';
+    var scoreClass = p.total_score >= 75 ? 'score-high' : (p.total_score >= 60 ? 'score-mid' : 'score-low');
+    var marginClass = p.profit_margin >= 30 ? 'badge-green' : (p.profit_margin >= 20 ? 'badge-yellow' : 'badge-red');
+    var favClass = favAsins.indexOf(p.asin) >= 0 ? 'active' : '';
+    var ds = p.data_source || source;
+    var dsLabel = sourceLabels[ds] || ds;
+    var dsColor = sourceColors[ds] || 'badge-green';
+
+    h += '<tr>';
+    h += '<td class="checkbox-col"><input type="checkbox" class="asin-cb" value="' + p.asin + '"></td>';
+    h += '<td>' + (i + 1) + '</td>';
+    h += '<td>' + imgHtml + '</td>';
+    h += '<td><a href="https://www.' + domain + '/dp/' + p.asin + '" target="_blank" style="color:#6366f1;font-weight:500"><code>' + p.asin + '</code></a></td>';
+    h += '<td><span class="badge ' + dsColor + '">' + dsLabel + '</span></td>';
+    h += '<td><span class="score ' + scoreClass + '">' + (p.total_score || 0) + '</span></td>';
+    h += '<td>$' + (p.price || 0).toFixed(2) + '</td>';
+    h += '<td>$' + (p.gross_profit || 0).toFixed(2) + '</td>';
+    h += '<td><span class="badge ' + marginClass + '">' + (p.profit_margin || 0).toFixed(1) + '%</span></td>';
+    h += '<td>' + (p.monthly_sales_est || 0) + '</td>';
+    h += '<td>#' + (p.bsr || '-') + '</td>';
+    h += '<td>' + (p.rating || 0) + '/5.0</td>';
+    h += '<td><button class="fav-btn ' + favClass + '" onclick="toggleFav(\'' + p.asin + '\',this)">⭐</button></td>';
+    h += '<td style="white-space:nowrap"><button class="btn btn-sm btn-secondary" style="padding:2px 6px;font-size:14px" onclick="quickAlert(\'' + p.asin + '\',\'' + (p.price || 0).toFixed(2) + '\')" title="快速预警">🔔</button> <a class="detail-link" href="/detail/' + p.asin + '">详情 →</a></td>';
+    h += '</tr>';
+  }
+  h += '</tbody></table></div>';
+  h += '<div class="actions"><a href="/export" class="btn btn-primary">📥 导出报告</a><a href="/api/export" class="btn btn-secondary" download>📄 下载 Markdown</a><button class="btn btn-secondary" onclick="compareSelected()">📊 对比选中</button></div>';
+
+  el.innerHTML = h;
+  el.style.display = 'block';
 }
 
 function showLoading(t) { document.getElementById('loadingText').textContent = t; document.getElementById('loading').classList.add('show'); document.getElementById('results').style.display = 'none'; }
@@ -1373,8 +1434,17 @@ def api_scan():
             return jsonify({"ok": False, "error": "未获取到产品"})
         for p in products:
             p.marketplace = marketplace
+            if not p.data_source:
+                p.data_source = "playwright" if datasource == "playwright" else "rainforest"
         _run_pipeline(products, config, list_type, category, pages)
-        return jsonify({"ok": True, "count": len(products)})
+        scan_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        products_data = []
+        for p in products:
+            d = p.to_dict()
+            d["amazon_domain"] = RainforestCollector.MARKETPLACE_DOMAINS.get(marketplace, "amazon.com")
+            d["image_url"] = p.get_image_url
+            products_data.append(d)
+        return jsonify({"ok": True, "count": len(products_data), "products": products_data, "scan_time": scan_time, "source": "playwright" if datasource == "playwright" else "rainforest"})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
@@ -1407,8 +1477,17 @@ def api_search():
             return jsonify({"ok": False, "error": "未搜索到产品"})
         for p in products:
             p.marketplace = marketplace
+            if not p.data_source:
+                p.data_source = "playwright" if datasource == "playwright" else "rainforest"
         _run_pipeline(products, config, "search", keyword, pages)
-        return jsonify({"ok": True, "count": len(products)})
+        scan_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        products_data = []
+        for p in products:
+            d = p.to_dict()
+            d["amazon_domain"] = RainforestCollector.MARKETPLACE_DOMAINS.get(marketplace, "amazon.com")
+            d["image_url"] = p.get_image_url
+            products_data.append(d)
+        return jsonify({"ok": True, "count": len(products_data), "products": products_data, "scan_time": scan_time, "source": "playwright" if datasource == "playwright" else "rainforest"})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 

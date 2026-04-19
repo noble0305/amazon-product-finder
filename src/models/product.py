@@ -63,6 +63,15 @@ class Product:
     image_url: str = ""  # 商品图片 URL
 
     @property
+    def get_image_url(self) -> str:
+        """获取图片 URL，三层兜底策略"""
+        if self.image_url:
+            return self.image_url
+        if self.asin:
+            return f"https://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN={self.asin}&Format=_SL250_&ID=AsinImage"
+        return ""
+
+    @property
     def volume_cm3(self) -> float:
         """计算体积（立方厘米）"""
         if self.dimensions and len(self.dimensions) == 3:

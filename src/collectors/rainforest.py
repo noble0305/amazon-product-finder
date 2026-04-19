@@ -513,7 +513,7 @@ class RainforestCollector:
                     dimensions=self._extract_dimensions(item),
                     listing_quality_score=self._assess_listing_quality(item),
                     date_first_available=item.get("date_first_available", ""),
-                    image_url=item.get("image", ""),
+                    image_url=item.get("image", "") or (item.get("main_image", {}) or {}).get("link", ""),
                 )
                 product.monthly_revenue_est = round(
                     product.price * product.monthly_sales_est, 2

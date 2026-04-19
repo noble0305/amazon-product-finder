@@ -144,6 +144,8 @@ class PlaywrightScraper:
         return 0
 
     def _make_product(self, *, asin, title, price, rating, reviews_count, bsr, category, image_url) -> Product:
+        if not image_url and asin:
+            image_url = f"https://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN={asin}&Format=_SL250_&ID=AsinImage"
         return Product(
             asin=asin,
             title=title.strip()[:500],
